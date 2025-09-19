@@ -1,0 +1,31 @@
+# db/Dockerfile
+# Purpose
+#   Provide a PostgreSQL + PostGIS runtime image that also includes:
+#       - GDAL tools (gdal-bin) for ad‑hoc geoprocessing and ogr2ogr utilities
+#       - OGR_FDW extension to read external spatial formats via GDAL/OGR
+#       - H3 + h3_postgis extensions for hex indexing and geometry bindings
+#   Keeps the image lean by using --no-install-recommends and cleaning apt lists.
+#
+# Base image
+#   postgis/postgis:16-3.5  - PostgreSQL 16 with PostGIS 3.5 preinstalled.
+#
+# Build args
+#   PG_MAJOR is used to pick the right Debian/Ubuntu package names for extensions.
+#   DEBIAN_FRONTEND=noninteractive avoids tzdata/locale prompts during apt installs.
+
+FROM postgis/postgis:16-3.5
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG PG_MAJOR=16
+
+# Install required packages:
+#   gdal-bin                         : GDAL command-line tools
+#   postgresql-${PG_MAJOR}-ogr-fdw   : the ogr_fdw extension binaries for PG ${PG_MAJOR}
+#   postgresql-${PG_MAJOR}-h3        : H3 and PostGIS bindings
+# Then remove apt lists to reduce image size.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      gdal-bin \
+      postgresql-$PG_MAJOR-ogr-fdw \
+      postgresql-$PG_MAJOR-h3 \
+    && rm -rf /var/lib/apt/lists/*
