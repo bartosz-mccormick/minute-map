@@ -22,16 +22,18 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
-import hexes from './assets/data.json'; 
+//  import hexes from './assets/data.json'; 
 
 
 const INITIAL_VIEW_STATE = {
-  longitude: 2.433001308137797,
-  latitude:   48.627037796582584,
+  longitude: 5.098107855086862,
+  latitude:   52.09641414282321,
   zoom: 11,
   pitch: 0,
   bearing: 0,
 }
+
+
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 
@@ -43,24 +45,24 @@ function DeckGLOverlay(props: any) {
   return null
 }
 
-function HexMap() {
+function HexMap({ hexData }: { hexData: any[] }) {
   const layers = [
     new H3HexagonLayer({
       id: "H3HexagonLayer",
-      data: hexes,
+      data: hexData,
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: (d: any) => d.compliance,
+      getElevation: (d: any) => d.compliance_avg,
       getFillColor: colorBins({
-        attr: (d: any) => d.compliance,
+        attr: (d: any) => d.compliance_avg,
         domain: [.2, .4, .6, .8],
         colors: 'SunsetDark'
       }),
       getLineColor: [255, 255, 255],
       lineWidthMinPixels: .5,
       //getFillColor: (d: any) => [255, (1 - d.compliance) * 255, 0],
-      getHexagon: (d: any) => d.id,
+      getHexagon: (d: any) => d.h3_cell,
       wireframe: false,
       pickable: true,
       opacity: .3
@@ -76,7 +78,7 @@ function HexMap() {
     >
       <DeckGLOverlay
         layers={layers}
-        getTooltip={({ object }: any) => object && `${object.id} compliance: ${object.compliance}`}
+        getTooltip={({ object }: any) => object && `${object.h3_cell} compliance: ${object.compliance_avg}`}
       />
       <NavigationControl position="top-left" />
     </Map>
@@ -84,15 +86,15 @@ function HexMap() {
 }
 
 const travelScenarios = [
-  { value: "current", label: "July 2025" },
-  { value: "bikesharing-a", label: "Bike Sharing System Alternative A" },
-  { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
+  { value: "current", label: "Current" },
+  // { value: "bikesharing-a", label: "Bike Sharing System Alternative A" },
+  // { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
 ]
 
 const transportModes = [
-  { value: "walking", label: "Walking" },
-  { value: "cycling", label: "Cycling" },
-  { value: "public-transport", label: "Public Transport" },
+  { value: "walk", label: "Walking" },
+  // { value: "bike", label: "Cycling" },
+  // { value: "public-transport", label: "Public Transport" },
 ]
 
 const destinationTypes = [
@@ -111,7 +113,7 @@ interface Threshold {
 }
 
 export default function app() {
-  const [selectedScenario, setSelectedScenario] = React.useState("")
+  const [selectedScenario, setSelectedScenario] = React.useState("current")
   const [thresholds, setThresholds] = React.useState<Threshold[]>([])
   const [configOpen, setConfigOpen] = React.useState(false)
 
@@ -120,6 +122,11 @@ export default function app() {
   const [currentTravelTime, setCurrentTravelTime] = React.useState("")
   const [currentSelectedDestinations, setCurrentSelectedDestinations] = React.useState<string[]>([])
   const [destinationsOpen, setDestinationsOpen] = React.useState(false)
+
+  // map data
+
+  const [hexData, setHexData] = React.useState<any[]>([]);
+
 
   const addThreshold = () => {
     if (currentTransportMode && currentTravelTime && currentSelectedDestinations.length > 0) {
@@ -160,17 +167,46 @@ export default function app() {
     return transportModes.find((m) => m.value === value)?.label || value
   }
 
-  const handleAnalyze = () => {
-    console.log({
-      scenario: selectedScenario,
-      thresholds: thresholds.map((threshold) => ({
-        id: threshold.id,
-        transportMode: threshold.transportMode,
-        travelTime: Number.parseInt(threshold.travelTime),
-        destinations: threshold.selectedDestinations,
-      })),
-    })
-    setConfigOpen(false)
+  type ComplianceRow = {
+    h3_cell: string;
+    compliance_avg: number;
+  };
+  
+  const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
+  
+  const handleAnalyze = async () => {
+    const groups = thresholds.map((t) => ({
+      mode: t.transportMode,
+      T: parseInt(t.travelTime),
+      X: 1,       // adjust if you have this in UI
+      amenities: t.selectedDestinations,
+    }));
+  
+    try {
+      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_min_summary_batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Profile': 'api'
+        },
+        body: JSON.stringify({ _groups: groups }),
+      });
+  
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status} – ${text}`);
+      }
+  
+      const data: ComplianceRow[] = await res.json();
+      setHexData(data)
+  
+      // console.log('RPC payload:', { scenario: selectedScenario, groups });
+      // console.log('RPC response (h3_cell, compliance_avg):', data);
+  
+      setConfigOpen(false);
+    } catch (e) {
+      console.error('PostgREST RPC failed:', e);
+    }
   }
 
   const isFormValid = selectedScenario && thresholds.length > 0
@@ -201,16 +237,8 @@ export default function app() {
 
   return (
     <div className="h-screen w-full relative bg-gray-50">
-      {/* Map Placeholder */}
-      {/*<div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-green-50 border-2 border-dashed border-gray-300">
-        <div className="text-center space-y-4">
-          <div className="text-6xl text-gray-400">🗺️</div>
-          <div className="text-2xl font-semibold text-gray-600">Map Placeholder</div>
-          <div className="text-gray-500">Interactive map will be displayed here</div>
-        </div>
-      </div>*/}
 
-      <HexMap />
+      <HexMap hexData={hexData} />
 
       {/* Config Button */}
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
@@ -286,7 +314,7 @@ export default function app() {
                       value={currentTravelTime}
                       onChange={(e) => setCurrentTravelTime(e.target.value)}
                       min="1"
-                      max="120"
+                      max="30"
                     />
                   </div>
                   <div className="space-y-2">
