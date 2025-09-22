@@ -39,6 +39,32 @@ const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 
 
 
+const DESTINATIONS = [
+  { value: "atm_bank", label: "ATM/Bank", icon: "🏧" },
+  { value: "bakery", label: "Bakery", icon: "🥐" },
+  { value: "bar", label: "Bar", icon: "🍺" },
+  { value: "cafe", label: "Cafe", icon: "☕" },
+  { value: "gp", label: "General Practitioner", icon: "🩺" },
+  { value: "grocery", label: "Grocery", icon: "🛒" },
+  { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
+  { value: "library", label: "Library", icon: "📚" },
+  { value: "park", label: "Park", icon: "🌳" },
+  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
+  { value: "playground", label: "Playground", icon: "🛝" },
+  { value: "post", label: "Post Office", icon: "📦" },
+  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
+];
+
+const getDestinationLabel = (value: string) => {
+  return DESTINATIONS.find((d) => d.value === value)?.label || value
+}
+
+const getDestinationIcon = (value: string) => {
+  return DESTINATIONS.find((d) => d.value === value)?.icon || ""
+}
+
+const MAX_TT = "30"
+
 function DeckGLOverlay(props: any) {
   const overlay = useControl(() => new DeckOverlay(props))
   overlay.setProps(props)
@@ -76,10 +102,27 @@ function HexMap({ hexData }: { hexData: any[] }) {
       mapStyle= {MAP_STYLE}
       style={{ width: "100%", height: "100%" }}
     >
-      <DeckGLOverlay
-        layers={layers}
-        getTooltip={({ object }: any) => object && `${object.h3_cell} compliance: ${object.compliance_avg}`}
-      />
+<DeckGLOverlay
+  layers={layers}
+  getTooltip={({ object }: any) => {
+    if (!object) return null;
+
+    const walk = object?.modes?.walk ?? {};
+    const lines = Object.entries(walk)
+      .filter(([, v]) => v && typeof v === "object") // keep only category objects
+      .map(([value, v]: [string, any]) => {
+        const t = v?.min_travel_time;
+        const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`;
+        return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${display}`;
+      });
+
+    return `${object.h3_cell}
+compliance: ${Math.round(object.compliance_avg*100)}%
+
+Min travel time (walk):
+${lines.join("\n")}`;
+  }}
+/>
       <NavigationControl position="top-left" />
     </Map>
   )
@@ -97,13 +140,8 @@ const transportModes = [
   // { value: "public-transport", label: "Public Transport" },
 ]
 
-const destinationTypes = [
-  { value: "supermarket", label: "Supermarket", icon: "🛒" },
-  { value: "park", label: "Park", icon: "🌳" },
-  { value: "school", label: "School", icon: "🏫" },
-  { value: "doctor", label: "Doctor", icon: "🏥" },
-  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
-]
+
+
 
 interface Threshold {
   id: string
@@ -155,22 +193,13 @@ export default function app() {
     )
   }
 
-  const getDestinationLabel = (value: string) => {
-    return destinationTypes.find((d) => d.value === value)?.label || value
-  }
 
-  const getDestinationIcon = (value: string) => {
-    return destinationTypes.find((d) => d.value === value)?.icon || ""
-  }
 
   const getTransportModeLabel = (value: string) => {
     return transportModes.find((m) => m.value === value)?.label || value
   }
 
-  type ComplianceRow = {
-    h3_cell: string;
-    compliance_avg: number;
-  };
+ 
   
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
   
@@ -183,7 +212,7 @@ export default function app() {
     }));
   
     try {
-      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_min_summary_batch`, {
+      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_batch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -197,11 +226,11 @@ export default function app() {
         throw new Error(`HTTP ${res.status} – ${text}`);
       }
   
-      const data: ComplianceRow[] = await res.json();
+      const data: any[] = await res.json();
       setHexData(data)
   
-      // console.log('RPC payload:', { scenario: selectedScenario, groups });
-      // console.log('RPC response (h3_cell, compliance_avg):', data);
+      console.log('RPC payload:', { scenario: selectedScenario, groups });
+      console.log('RPC response (h3_cell, compliance_avg):', data);
   
       setConfigOpen(false);
     } catch (e) {
@@ -279,7 +308,8 @@ export default function app() {
             <Card>
               <CardHeader>
                 <CardTitle>Compliance Thresholds</CardTitle>
-                <div className="flex gap-4 mt-2">
+                {/* flex! */}
+                <div className="hidden gap-4 mt-2"> 
                   <Button variant="outline" size="sm" onClick={() => applyPreset("15-minute-city")} className="text-xs">
                     15-Minute City
                   </Button>
@@ -314,7 +344,7 @@ export default function app() {
                       value={currentTravelTime}
                       onChange={(e) => setCurrentTravelTime(e.target.value)}
                       min="1"
-                      max="30"
+                      max={MAX_TT}
                     />
                   </div>
                   <div className="space-y-2">
@@ -339,7 +369,7 @@ export default function app() {
                           <CommandList>
                             <CommandEmpty>No destinations found.</CommandEmpty>
                             <CommandGroup>
-                              {destinationTypes.map((destination) => (
+                              {DESTINATIONS.map((destination) => (
                                 <CommandItem
                                   key={destination.value}
                                   value={destination.value}
