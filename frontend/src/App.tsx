@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Plus, Trash2, Settings } from "lucide-react"
 
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown,Loader2 } from "lucide-react"
 import { Map, NavigationControl, useControl } from "react-map-gl/maplibre"
 import { H3HexagonLayer } from "deck.gl"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
@@ -112,8 +112,17 @@ function HexMap({ hexData }: { hexData: any[] }) {
       .filter(([, v]) => v && typeof v === "object") // keep only category objects
       .map(([value, v]: [string, any]) => {
         const t = v?.min_travel_time;
+        const c = v?.compliance
         const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`;
-        return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${display}`;
+        var complies:String;
+        if(c === 1){
+          complies = '✅'
+        } else if(c === 0){
+          complies = '❌'
+        } else{
+          complies = '⚠️'
+        }
+        return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${display} ${complies}`;
       });
 
     return `${object.h3_cell}
@@ -202,8 +211,11 @@ export default function app() {
  
   
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
+
+  const [loading, setLoading] = React.useState(false);
   
   const handleAnalyze = async () => {
+    setLoading(true);
     const groups = thresholds.map((t) => ({
       mode: t.transportMode,
       T: parseInt(t.travelTime),
@@ -235,6 +247,8 @@ export default function app() {
       setConfigOpen(false);
     } catch (e) {
       console.error('PostgREST RPC failed:', e);
+    } finally{
+      setLoading(false);
     }
   }
 
@@ -454,8 +468,21 @@ export default function app() {
 
             {/* Action Buttons */}
             <div className="flex justify-center space-x-4 pt-4">
-              <Button onClick={handleAnalyze} disabled={!isFormValid} size="lg" className="px-8">
-                Run Analysis
+              <Button
+                onClick={handleAnalyze}
+                disabled={!isFormValid || loading}
+                size="lg"
+                className="px-8 min-w-[180px]"
+                aria-busy={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Please wait
+                  </>
+                ) : (
+                  "Run Analysis"
+                )}
               </Button>
               <Button
                 variant="outline"
