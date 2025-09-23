@@ -37,23 +37,34 @@ const INITIAL_VIEW_STATE = {
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 
+const MAX_TT = "45"
 
 
 const DESTINATIONS = [
+  // Errands & Health
+  { value: "grocery", label: "Supermarket", icon: "🛒" },
+  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
   { value: "atm_bank", label: "ATM/Bank", icon: "🏧" },
-  { value: "bakery", label: "Bakery", icon: "🥐" },
-  { value: "bar", label: "Bar", icon: "🍺" },
-  { value: "cafe", label: "Cafe", icon: "☕" },
+  { value: "post", label: "Post Office", icon: "📦" },
   { value: "gp", label: "General Practitioner", icon: "🩺" },
-  { value: "grocery", label: "Grocery", icon: "🛒" },
+
+  // Food & Drink
+  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
+  { value: "cafe", label: "Cafe", icon: "☕" },
+  { value: "bar", label: "Bar", icon: "🍺" },
+  { value: "bakery", label: "Bakery", icon: "🥐" },
+
+  // Education & Culture
+  { value: "school", label: "School", icon: "🏫" },
   { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
   { value: "library", label: "Library", icon: "📚" },
+
+  // Leisure & Outdoors
+  { value: "sport", label: "Sports Facility", icon: "🏃" },
   { value: "park", label: "Park", icon: "🌳" },
-  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
   { value: "playground", label: "Playground", icon: "🛝" },
-  { value: "post", label: "Post Office", icon: "📦" },
-  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
 ];
+
 
 const getDestinationLabel = (value: string) => {
   return DESTINATIONS.find((d) => d.value === value)?.label || value
@@ -63,7 +74,6 @@ const getDestinationIcon = (value: string) => {
   return DESTINATIONS.find((d) => d.value === value)?.icon || ""
 }
 
-const MAX_TT = "30"
 
 function DeckGLOverlay(props: any) {
   const overlay = useControl(() => new DeckOverlay(props))
@@ -125,11 +135,23 @@ function HexMap({ hexData }: { hexData: any[] }) {
         return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${display} ${complies}`;
       });
 
-    return `${object.h3_cell}
-compliance: ${Math.round(object.compliance_avg*100)}%
+      const lines2 = Object.entries(walk)
+      .filter(([, v]) => v && typeof v === "object") // keep only category objects
+      .map(([value, v]: [string, any]) => {
+        const total_n = v?.total_n;
+        return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${total_n}`;
+      });
 
-Min travel time (walk):
-${lines.join("\n")}`;
+
+    return `Compliance: ${Math.round(object.compliance_avg*100)}%
+    
+    Min Travel Time (Walk):
+    ${lines.join("\n")}
+    
+    Number Reached:
+    ${lines2.join("\n")}
+    
+    `;
   }}
 />
       <NavigationControl position="top-left" />
@@ -144,7 +166,7 @@ const travelScenarios = [
 ]
 
 const transportModes = [
-  { value: "walk", label: "Walking" },
+  { value: "walk", label: "Walking (4 km/h)" },
   // { value: "bike", label: "Cycling" },
   // { value: "public-transport", label: "Public Transport" },
 ]
