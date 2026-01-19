@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Trash2, Settings } from "lucide-react"
-
-import { Check, ChevronsUpDown,Loader2 } from "lucide-react"
+import { Settings, Loader2 } from "lucide-react"
 import { Map, NavigationControl, useControl } from "react-map-gl/maplibre"
 import { H3HexagonLayer } from "deck.gl"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
@@ -12,35 +10,50 @@ import {colorBins} from "@deck.gl/carto"
 
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  EditableThresholdsTable,
+  type Threshold,
+  type TransportMode,
+  type Destination,
+} from "@/components/editable-thresholds-table"
+import {
+  EditableWeightsTable,
+  type Weight,
+} from "@/components/editable-weights-table"
 
 //  import hexes from './assets/data.json'; 
 
-
+// https://labs.mapbox.com/location-helper/#10.04/48.137/11.5738
 const INITIAL_VIEW_STATE = {
-  longitude: 5.098107855086862,
-  latitude:   52.09641414282321,
-  zoom: 11,
+  longitude: 11.46147,
+  latitude:   47.87307,
+  zoom: 12,
   pitch: 0,
   bearing: 0,
 }
 
 
-
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 
-const MAX_TT = "45"
+const MAX_TT = 30
+
+type Color = [number,number,number]
+const COMPLIANCE_FILL_BOUNDS = [0, .2, .4, .6, .8, 1]
+const COMPLIANCE_FILL_COLORS: Color[] = [
+  [68, 1, 84],
+  [59, 82, 139],
+  [33, 145, 140],
+  [94, 201, 98],
+  [253, 231, 37],
+]
 
 
-const DESTINATIONS = [
+
+
+const DESTINATIONS: Destination[] = [
   // Errands & Health
   { value: "grocery", label: "Supermarket", icon: "🛒" },
   { value: "pharmacy", label: "Pharmacy", icon: "💊" },
@@ -64,6 +77,74 @@ const DESTINATIONS = [
   { value: "park", label: "Park", icon: "🌳" },
   { value: "playground", label: "Playground", icon: "🛝" },
 ];
+
+const INITIAL_WEIGHTS: Weight[] = [
+  {
+    id: "weights-entry",
+    selectedDestinations: DESTINATIONS.map((d) => d.value),
+    weight: 1,
+  },
+]
+
+const INITIAL_SCENARIO = "current"
+
+const INITIAL_THRESHOLDS: Threshold[] = []
+
+const availableIndicators = [
+  { value: "compliance_weighted_avg", label: "Compliance" }
+]
+
+function rgb([r, g, b]: Color) {
+  return `rgb(${r} ${g} ${b})`
+}
+
+function fmt(v: number) {
+  return v.toFixed(1).replace(/\.0$/, "")
+}
+
+function LegendBands({
+  bounds,
+  colors,
+  formatValue = fmt,
+}: {
+  bounds: number[]
+  colors: Color[]
+  formatValue?: (v: number) => string
+}) {
+  const bands = React.useMemo(() => {
+    const out: { from: number; to: number; color: Color }[] = []
+    const n = Math.min(colors.length, Math.max(0, bounds.length - 1))
+    for (let i = 0; i < n; i++) {
+      out.push({ from: bounds[i], to: bounds[i + 1], color: colors[i] })
+    }
+    return out
+  }, [bounds, colors])
+
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-1">
+        {bands.map((b, idx) => (
+          <li key={idx} className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-3 rounded-[3px] ring-1 ring-black/10"
+                style={{ background: rgb(b.color) }}
+                aria-hidden
+              />
+              <span className="tabular-nums">
+                {formatValue(b.from)}–{formatValue(b.to)}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+
+
+
 
 
 const getDestinationLabel = (value: string) => {
@@ -89,11 +170,11 @@ function HexMap({ hexData }: { hexData: any[] }) {
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: (d: any) => d.compliance_avg,
+      getElevation: (d: any) => d.compliance_weighted_avg,
       getFillColor: colorBins({
-        attr: (d: any) => d.compliance_avg,
-        domain: [.2, .4, .6, .8],
-        colors: 'SunsetDark'
+        attr: (d: any) => d.compliance_weighted_avg,
+        domain: COMPLIANCE_FILL_BOUNDS.slice(1, -1),
+        colors: COMPLIANCE_FILL_COLORS
       }),
       getLineColor: [255, 255, 255],
       lineWidthMinPixels: .5,
@@ -117,39 +198,40 @@ function HexMap({ hexData }: { hexData: any[] }) {
   getTooltip={({ object }: any) => {
     if (!object) return null;
 
-    const walk = object?.modes?.walk ?? {};
-    const lines = Object.entries(walk)
-      .filter(([, v]) => v && typeof v === "object") // keep only category objects
-      .map(([value, v]: [string, any]) => {
-        const t = v?.min_travel_time;
-        const c = v?.compliance
+    const amenities = object?.amenities ?? {};
+    const lines: string[] = [];
+    const lines2: string[] = [];
+
+    // Iterate through amenities
+    Object.entries(amenities).forEach(([amenity, amenityData]: [string, any]) => {
+      // Check for walk mode (or other modes)
+      const walkData = amenityData?.walk;
+      if (walkData && typeof walkData === "object") {
+        const t = walkData?.min_travel_time;
+        const c = walkData?.compliance;
         const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`;
-        var complies:String;
-        if(c === 1){
+        let complies: string;
+        if (c === 1) {
           complies = '✅'
-        } else if(c === 0){
+        } else if (c === 0) {
           complies = '❌'
-        } else{
+        } else {
           complies = '⚠️'
         }
-        return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${display} ${complies}`;
-      });
+        lines.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${display} ${complies}`);
+        
+        const total_n = walkData?.total_n;
+        lines2.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${total_n}`);
+      }
+    });
 
-      const lines2 = Object.entries(walk)
-      .filter(([, v]) => v && typeof v === "object") // keep only category objects
-      .map(([value, v]: [string, any]) => {
-        const total_n = v?.total_n;
-        return `${getDestinationIcon(value)} ${getDestinationLabel(value)}: ${total_n}`;
-      });
-
-
-    return `Compliance: ${Math.round(object.compliance_avg*100)}%
+    return `Compliance: ${Math.round(object.compliance_weighted_avg*100)}%
     
     Min Travel Time (Walk):
-    ${lines.join("\n")}
+    ${lines.length > 0 ? lines.join("\n") : "No data"}
     
     Number Reached:
-    ${lines2.join("\n")}
+    ${lines2.length > 0 ? lines2.join("\n") : "No data"}
     
     `;
   }}
@@ -165,94 +247,62 @@ const travelScenarios = [
   // { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
 ]
 
-const transportModes = [
-  { value: "walk", label: "Walking (4 km/h)" },
-  // { value: "bike", label: "Cycling" },
-  // { value: "public-transport", label: "Public Transport" },
+const transportModes: TransportMode[] = [
+    { value: "walk", label: "Walking (4 km/h)" },
+    { value: "bike", label: "Cycling" },
+    //{ value: "public-transport", label: "Public Transport" },
 ]
 
-
-
-
-interface Threshold {
-  id: string
-  transportMode: string
-  travelTime: string
-  selectedDestinations: string[]
-}
-
 export default function app() {
-  const [selectedScenario, setSelectedScenario] = React.useState("current")
-  const [thresholds, setThresholds] = React.useState<Threshold[]>([])
+  const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
+  const [thresholds, setThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
+  const [weights, setWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
+  const [selectedIndicator, setSelectedIndicator] = React.useState("compliance_weighted_avg")
 
-  // Current form state
-  const [currentTransportMode, setCurrentTransportMode] = React.useState("")
-  const [currentTravelTime, setCurrentTravelTime] = React.useState("")
-  const [currentSelectedDestinations, setCurrentSelectedDestinations] = React.useState<string[]>([])
-  const [destinationsOpen, setDestinationsOpen] = React.useState(false)
 
   // map data
 
   const [hexData, setHexData] = React.useState<any[]>([]);
 
 
-  const addThreshold = () => {
-    if (currentTransportMode && currentTravelTime && currentSelectedDestinations.length > 0) {
-      const newThreshold: Threshold = {
-        id: `threshold-${Date.now()}`,
-        transportMode: currentTransportMode,
-        travelTime: currentTravelTime,
-        selectedDestinations: [...currentSelectedDestinations],
-      }
-      setThresholds([...thresholds, newThreshold])
-
-      // Reset form
-      setCurrentTransportMode("")
-      setCurrentTravelTime("")
-      setCurrentSelectedDestinations([])
-    }
-  }
-
-  const deleteThreshold = (thresholdId: string) => {
-    setThresholds(thresholds.filter((threshold) => threshold.id !== thresholdId))
-  }
-
-  const handleDestinationToggle = (destinationValue: string) => {
-    setCurrentSelectedDestinations((prev) =>
-      prev.includes(destinationValue) ? prev.filter((d) => d !== destinationValue) : [...prev, destinationValue],
-    )
-  }
-
-
-
-  const getTransportModeLabel = (value: string) => {
-    return transportModes.find((m) => m.value === value)?.label || value
-  }
-
- 
-  
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
 
   const [loading, setLoading] = React.useState(false);
   
   const handleAnalyze = async () => {
     setLoading(true);
-    const groups = thresholds.map((t) => ({
+
+    // Build amenity_weights from current weights state.
+    // If multiple weight entries are ever supported, later ones will override earlier ones per amenity.
+    const amenityWeights: Record<string, number> = {};
+    for (const entry of weights) {
+      for (const amenity of entry.selectedDestinations) {
+        amenityWeights[amenity] = entry.weight;
+      }
+    }
+
+    // Build amenity_thresholds array from thresholds.
+    const amenityThresholds = thresholds.map((t) => ({
       mode: t.transportMode,
-      T: parseInt(t.travelTime),
-      X: 1,       // adjust if you have this in UI
+      T: t.travelTime,
+      X: t.quantity,
       amenities: t.selectedDestinations,
     }));
   
+    const payload = {
+      amenity_weights: amenityWeights,
+      amenity_thresholds: amenityThresholds,
+    };
+
     try {
-      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_batch`, {
+      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_by_amenity_batch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Content-Profile': 'api'
         },
-        body: JSON.stringify({ _groups: groups }),
+        body: JSON.stringify({ _groups: payload }),
       });
   
       if (!res.ok) {
@@ -263,8 +313,8 @@ export default function app() {
       const data: any[] = await res.json();
       setHexData(data)
   
-      console.log('RPC payload:', { scenario: selectedScenario, groups });
-      console.log('RPC response (h3_cell, compliance_avg):', data);
+      console.log('RPC payload:', { scenario: selectedScenario, _groups: payload });
+      console.log('RPC response:', data);
   
       setConfigOpen(false);
     } catch (e) {
@@ -274,30 +324,20 @@ export default function app() {
     }
   }
 
-  const isFormValid = selectedScenario && thresholds.length > 0
-  const canAddThreshold = currentTransportMode && currentTravelTime && currentSelectedDestinations.length > 0
+  const isFormValid =
+    selectedScenario &&
+    thresholds.length > 0 &&
+    thresholds.every(
+      (t) =>
+        t.transportMode &&
+        t.travelTime > 0 &&
+        t.selectedDestinations.length > 0
+    )
 
-  const applyPreset = (presetType: string) => {
-    // Clear existing thresholds
-    setThresholds([])
-
-    if (presetType === "15-minute-city") {
-      const preset: Threshold = {
-        id: `threshold-${Date.now()}`,
-        transportMode: "walking",
-        travelTime: "15",
-        selectedDestinations: ["supermarket", "park", "school", "doctor", "restaurant"],
-      }
-      setThresholds([preset])
-    } else if (presetType === "older-adult") {
-      const preset: Threshold = {
-        id: `threshold-${Date.now()}`,
-        transportMode: "walking",
-        travelTime: "10",
-        selectedDestinations: ["supermarket", "park", "doctor", "restaurant"],
-      }
-      setThresholds([preset])
-    }
+  const handleReset = () => {
+    setSelectedScenario(INITIAL_SCENARIO)
+    setThresholds(INITIAL_THRESHOLDS)
+    setWeights(INITIAL_WEIGHTS)
   }
 
   return (
@@ -313,7 +353,7 @@ export default function app() {
             Configure
           </Button>
         </DialogTrigger>
-        <DialogContent className=" sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>X-Minute City Analysis Configuration</DialogTitle>
           </DialogHeader>
@@ -340,156 +380,38 @@ export default function app() {
               </CardContent>
             </Card>
 
-            {/* Thresholds Configuration and Table */}
+            {/* Editable Weights Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Weights</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <EditableWeightsTable
+                  weights={weights}
+                  setWeights={setWeights}
+                  destinations={DESTINATIONS}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Editable Thresholds Table */}
             <Card>
               <CardHeader>
                 <CardTitle>Compliance Thresholds</CardTitle>
-                {/* flex! */}
-                <div className="hidden gap-4 mt-2"> 
-                  <Button variant="outline" size="sm" onClick={() => applyPreset("15-minute-city")} className="text-xs">
-                    15-Minute City
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => applyPreset("older-adult")} className="text-xs">
-                    Older Adult
-                  </Button>
-                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Form for adding thresholds */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                  <div className="space-y-2 w-full">
-                    <Label>Transport Mode</Label>
-                    <Select value={currentTransportMode} onValueChange={setCurrentTransportMode}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {transportModes.map((mode) => (
-                          <SelectItem key={mode.value} value={mode.value}>
-                            {mode.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Time Limit (min)</Label>
-                    <Input
-                      type="number"
-                      placeholder=""
-                      value={currentTravelTime}
-                      onChange={(e) => setCurrentTravelTime(e.target.value)}
-                      min="1"
-                      max={MAX_TT}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Destinations</Label>
-                    <Popover open={destinationsOpen} onOpenChange={setDestinationsOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={destinationsOpen}
-                          className="w-full justify-between bg-transparent"
-                        >
-                          {currentSelectedDestinations.length === 0
-                            ? "Select..."
-                            : `${currentSelectedDestinations.length} selected`}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Search destinations..." />
-                          <CommandList>
-                            <CommandEmpty>No destinations found.</CommandEmpty>
-                            <CommandGroup>
-                              {DESTINATIONS.map((destination) => (
-                                <CommandItem
-                                  key={destination.value}
-                                  value={destination.value}
-                                  onSelect={() => handleDestinationToggle(destination.value)}
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${
-                                      currentSelectedDestinations.includes(destination.value)
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    }`}
-                                  />
-                                  <span className="mr-2">{destination.icon}</span>
-                                  {destination.label}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div>
-                    <Button
-                      onClick={addThreshold}
-                      disabled={!canAddThreshold}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add Threshold
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Thresholds Table */}
-                {thresholds.length > 0 && (
-                  <div className="mt-6">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Transport Mode</TableHead>
-                          <TableHead>Time Limit</TableHead>
-                          <TableHead>Destinations</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {thresholds.map((threshold) => (
-                          <TableRow key={threshold.id}>
-                            <TableCell className="font-medium">
-                              {getTransportModeLabel(threshold.transportMode)}
-                            </TableCell>
-                            <TableCell>{threshold.travelTime} min</TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {threshold.selectedDestinations.map((destination) => (
-                                  <Badge key={destination} variant="outline" className="text-xs">
-                                    <span className="mr-1">{getDestinationIcon(destination)}</span>
-                                    {getDestinationLabel(destination)}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteThreshold(threshold.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+              <CardContent>
+                <EditableThresholdsTable
+                  thresholds={thresholds}
+                  setThresholds={setThresholds}
+                  transportModes={transportModes}
+                  destinations={DESTINATIONS}
+                  maxTravelTime={MAX_TT}
+                />
               </CardContent>
             </Card>
 
             {/* Action Buttons */}
-            <div className="flex justify-center space-x-4 pt-4">
+            <div className="flex justify-center gap-4 pt-4">
               <Button
                 onClick={handleAnalyze}
                 disabled={!isFormValid || loading}
@@ -509,13 +431,7 @@ export default function app() {
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => {
-                  setSelectedScenario("")
-                  setThresholds([])
-                  setCurrentTransportMode("")
-                  setCurrentTravelTime("")
-                  setCurrentSelectedDestinations([])
-                }}
+                onClick={handleReset}
               >
                 Reset Configuration
               </Button>
@@ -524,23 +440,26 @@ export default function app() {
         </DialogContent>
       </Dialog>
 
-      {/* Status Bar (optional - shows current config) */}
-      {(selectedScenario || thresholds.length > 0) && (
-        <div className="fixed bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3 text-sm">
-          <div className="space-y-1">
-            {selectedScenario && (
-              <div>
-                <strong>Scenario:</strong> {travelScenarios.find((s) => s.value === selectedScenario)?.label}
-              </div>
-            )}
-            {thresholds.length > 0 && (
-              <div>
-                <strong>Thresholds:</strong> {thresholds.length} configured
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <Card className="fixed bottom-4 left-4 bg-white/90 backdrop-blur-sm shadow-lg p-2">
+        <CardContent className="p-3 space-y-3 text-sm">
+          <Select value={selectedIndicator} onValueChange={setSelectedIndicator}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select Indicator" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableIndicators.map((indicator) => (
+                <SelectItem key={indicator.value} value={indicator.value}>
+                  {indicator.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <LegendBands
+            bounds={COMPLIANCE_FILL_BOUNDS}
+            colors={COMPLIANCE_FILL_COLORS}
+          />
+        </CardContent>
+      </Card>
     </div>
   )
 }
