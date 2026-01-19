@@ -24,6 +24,8 @@ import {
   type Weight,
 } from "@/components/editable-weights-table"
 
+import { NestedDropdownSelect, type NestedOption } from "./components/nested-dropdown-select"
+
 //  import hexes from './assets/data.json'; 
 
 // https://labs.mapbox.com/location-helper/#10.04/48.137/11.5738
@@ -48,6 +50,18 @@ const COMPLIANCE_FILL_COLORS: Color[] = [
   [33, 145, 140],
   [94, 201, 98],
   [253, 231, 37],
+]
+
+//https://colorbrewer2.org/#type=sequential&scheme=Purples&n=7
+const TRAVEL_TIME_FILL_BOUNDS = [0, 5, 10, 15, 20, 25, 30]
+const TRAVEL_TIME_FILL_COLORS: Color[] = [
+  [242, 240, 247],
+  [218, 218, 235],
+  [188, 189, 220],
+  [158, 154, 200],
+  [128, 125, 186],
+  [106, 81, 163],
+  [74, 20, 134],
 ]
 
 
@@ -78,6 +92,13 @@ const DESTINATIONS: Destination[] = [
   { value: "playground", label: "Playground", icon: "🛝" },
 ];
 
+const TRANSPORT_MODES: TransportMode[] = [
+  { value: "walk", label: "Walking (4 km/h)" },
+  { value: "bike", label: "Cycling" },
+  //{ value: "public-transport", label: "Public Transport" },
+]
+
+
 const INITIAL_WEIGHTS: Weight[] = [
   {
     id: "weights-entry",
@@ -90,9 +111,12 @@ const INITIAL_SCENARIO = "current"
 
 const INITIAL_THRESHOLDS: Threshold[] = []
 
-const availableIndicators = [
+
+const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
+[
   { value: "compliance_weighted_avg", label: "Compliance" }
 ]
+
 
 function rgb([r, g, b]: Color) {
   return `rgb(${r} ${g} ${b})`
@@ -155,6 +179,10 @@ const getDestinationIcon = (value: string) => {
   return DESTINATIONS.find((d) => d.value === value)?.icon || ""
 }
 
+const getModeLabel = (value: string) => {
+  return TRANSPORT_MODES.find((d) => d.value === value)?.label || ""
+}
+
 
 function DeckGLOverlay(props: any) {
   const overlay = useControl(() => new DeckOverlay(props))
@@ -162,29 +190,52 @@ function DeckGLOverlay(props: any) {
   return null
 }
 
-function HexMap({ hexData }: { hexData: any[] }) {
-  const layers = [
+function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
+  // Determine if this is a compliance indicator or travel time indicator
+  const isComplianceIndicator = indicator === 'compliance_weighted_avg'
+  
+  // Helper function to get the value from data based on indicator
+  // This needs to be stable for deck.gl to detect changes
+  const getIndicatorValue = React.useCallback((d: any): number => {
+    if (isComplianceIndicator) {
+      return d[indicator] ?? 0
+    }
+    // Handle nested indicators like "amenity::mode"
+    const parts = indicator.split("::")
+    if (parts.length === 2) {
+      const [amenity, mode] = parts
+      return d.amenities?.[amenity]?.[mode]?.min_travel_time ?? MAX_TT + 1
+    }
+    return 0
+  }, [indicator, isComplianceIndicator])
+  
+  const layers = React.useMemo(() => [
     new H3HexagonLayer({
-      id: "H3HexagonLayer",
+      id: `H3HexagonLayer-${indicator}`,
       data: hexData,
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: (d: any) => d.compliance_weighted_avg,
+      getElevation: getIndicatorValue,
       getFillColor: colorBins({
-        attr: (d: any) => d.compliance_weighted_avg,
-        domain: COMPLIANCE_FILL_BOUNDS.slice(1, -1),
-        colors: COMPLIANCE_FILL_COLORS
+        attr: getIndicatorValue,
+        domain: isComplianceIndicator 
+          ? COMPLIANCE_FILL_BOUNDS.slice(1, -1)
+          : TRAVEL_TIME_FILL_BOUNDS.slice(1, -1),
+        colors: isComplianceIndicator ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS
       }),
       getLineColor: [255, 255, 255],
       lineWidthMinPixels: .5,
-      //getFillColor: (d: any) => [255, (1 - d.compliance) * 255, 0],
       getHexagon: (d: any) => d.h3_cell,
       wireframe: false,
       pickable: true,
-      opacity: .3
+      opacity: .3,
+      updateTriggers: {
+        getElevation: indicator,
+        getFillColor: indicator,
+      }
     }),
-  ]
+  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator])
 
 
   return (
@@ -247,11 +298,7 @@ const travelScenarios = [
   // { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
 ]
 
-const transportModes: TransportMode[] = [
-    { value: "walk", label: "Walking (4 km/h)" },
-    { value: "bike", label: "Cycling" },
-    //{ value: "public-transport", label: "Public Transport" },
-]
+
 
 export default function app() {
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
@@ -259,7 +306,9 @@ export default function app() {
   const [weights, setWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
   const [selectedIndicator, setSelectedIndicator] = React.useState("compliance_weighted_avg")
-
+  const [availableIndicators, setAvailableIndicators] = React.useState<NestedOption[]>(
+    ALWAYS_AVAILABLE_INDICATORS
+  )
 
   // map data
 
@@ -282,13 +331,40 @@ export default function app() {
       }
     }
 
-    // Build amenity_thresholds array from thresholds.
-    const amenityThresholds = thresholds.map((t) => ({
-      mode: t.transportMode,
-      T: t.travelTime,
-      X: t.quantity,
-      amenities: t.selectedDestinations,
-    }));
+
+
+
+
+    // Build amenity_thresholds array from thresholds + build mode->amenities
+    const amenityToModesSets: Record<string, Set<string>> = {}
+
+    const amenityThresholds = thresholds.map((t) => {
+      const mode = t.transportMode
+
+      for (const a of t.selectedDestinations ?? []) {
+        const set = (amenityToModesSets[a] ??= new Set<string>())
+
+        if (mode) set.add(mode)
+      }
+
+      return {
+        mode,
+        T: t.travelTime,
+        X: t.quantity,
+        amenities: t.selectedDestinations,
+      }
+    })
+
+    // Convert Set -> sorted array
+    const amenityToModes: Record<string, string[]> = Object.fromEntries(
+      Object.entries(amenityToModesSets).map(([a, set]) => [
+        a,
+        [...set].sort(),
+      ])
+    )
+
+    
+
   
     const payload = {
       amenity_weights: amenityWeights,
@@ -319,8 +395,25 @@ export default function app() {
       setConfigOpen(false);
     } catch (e) {
       console.error('PostgREST RPC failed:', e);
+      setAvailableIndicators([])
     } finally{
       setLoading(false);
+
+      // update available indicators
+
+      const newIndicatorOptions: NestedOption[] = [
+        ...ALWAYS_AVAILABLE_INDICATORS,
+        ...Object.entries(amenityToModes).map(([a, modes]) => ({
+          value: a ,
+          label: getDestinationIcon(a) + getDestinationLabel(a),
+          children: modes.map((mode) => ({ value: a+'::'+mode, label: getModeLabel(mode)  })),
+        })),
+      ]
+
+      
+
+      setAvailableIndicators(
+        newIndicatorOptions)
     }
   }
 
@@ -343,7 +436,8 @@ export default function app() {
   return (
     <div className="h-screen w-full relative bg-gray-50">
 
-      <HexMap hexData={hexData} />
+      <HexMap hexData={hexData} indicator={selectedIndicator} />
+
 
       {/* Config Button */}
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
@@ -403,7 +497,7 @@ export default function app() {
                 <EditableThresholdsTable
                   thresholds={thresholds}
                   setThresholds={setThresholds}
-                  transportModes={transportModes}
+                  transportModes={TRANSPORT_MODES}
                   destinations={DESTINATIONS}
                   maxTravelTime={MAX_TT}
                 />
@@ -442,23 +536,21 @@ export default function app() {
 
       <Card className="fixed bottom-4 left-4 bg-white/90 backdrop-blur-sm shadow-lg p-2">
         <CardContent className="p-3 space-y-3 text-sm">
-          <Select value={selectedIndicator} onValueChange={setSelectedIndicator}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Indicator" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableIndicators.map((indicator) => (
-                <SelectItem key={indicator.value} value={indicator.value}>
-                  {indicator.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+          <NestedDropdownSelect
+            options={availableIndicators}
+            value={selectedIndicator}
+            onValueChange={setSelectedIndicator}
+            placeholder="Select indicator"
+            showPathInLabel
+            pathSeparator=": "
+           />
           <LegendBands
-            bounds={COMPLIANCE_FILL_BOUNDS}
-            colors={COMPLIANCE_FILL_COLORS}
+            bounds={selectedIndicator === 'compliance_weighted_avg'?COMPLIANCE_FILL_BOUNDS:TRAVEL_TIME_FILL_BOUNDS}
+            colors={selectedIndicator === 'compliance_weighted_avg'?COMPLIANCE_FILL_COLORS:TRAVEL_TIME_FILL_COLORS}
           />
         </CardContent>
+        {/* {selectedIndicator.split("::")[0]} */}
       </Card>
     </div>
   )
