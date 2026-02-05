@@ -117,6 +117,13 @@ const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
   { value: "compliance_weighted_avg", label: "Compliance" }
 ]
 
+const SINGLE_DESTINATION_INDICATORS = [
+  { value: "compliance", label: "Threshold Pass/Fail" },
+  { value: "min_travel_time", label: "Time to Nearest" },
+  { value: "min_travel_time_X", label: "Time to Nearest X" },
+
+]
+
 
 function rgb([r, g, b]: Color) {
   return `rgb(${r} ${g} ${b})`
@@ -192,19 +199,21 @@ function DeckGLOverlay(props: any) {
 
 function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
   // Determine if this is a compliance indicator or travel time indicator
-  const isComplianceIndicator = indicator === 'compliance_weighted_avg'
+  const isComplianceIndicator = indicator.includes("compliance");
   
   // Helper function to get the value from data based on indicator
   // This needs to be stable for deck.gl to detect changes
   const getIndicatorValue = React.useCallback((d: any): number => {
-    if (isComplianceIndicator) {
-      return d[indicator] ?? 0
-    }
+
     // Handle nested indicators like "amenity::mode"
     const parts = indicator.split("::")
-    if (parts.length === 2) {
-      const [amenity, mode] = parts
-      return d.amenities?.[amenity]?.[mode]?.min_travel_time ?? MAX_TT + 1
+    if (parts.length === 1) {
+      return d[indicator] ?? 0
+
+    }
+    if (parts.length === 3) {
+      const [amenity, mode, metric] = parts
+      return d.amenities?.[amenity]?.[mode]?.[metric]
     }
     return 0
   }, [indicator, isComplianceIndicator])
@@ -276,15 +285,16 @@ function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
       }
     });
 
-    return `Compliance: ${Math.round(object.compliance_weighted_avg*100)}%
-    
-    Min Travel Time (Walk):
-    ${lines.length > 0 ? lines.join("\n") : "No data"}
-    
-    Number Reached:
-    ${lines2.length > 0 ? lines2.join("\n") : "No data"}
-    
-    `;
+    //return `Compliance: ${Math.round(object.compliance_weighted_avg*100)}%
+    return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%
+    ${
+      indicator !== "compliance_weighted_avg"
+        ? isComplianceIndicator
+            ? `${Math.round(getIndicatorValue(object) * 100)}%`
+            : `${getIndicatorValue(object)} minutes`
+        : ""
+    }`
+
   }}
 />
       <NavigationControl position="top-left" />
@@ -391,6 +401,7 @@ export default function app() {
   
       console.log('RPC payload:', { scenario: selectedScenario, _groups: payload });
       console.log('RPC response:', data);
+      console.log(availableIndicators)
   
       setConfigOpen(false);
     } catch (e) {
@@ -398,6 +409,7 @@ export default function app() {
       setAvailableIndicators([])
     } finally{
       setLoading(false);
+      
 
       // update available indicators
 
@@ -406,7 +418,14 @@ export default function app() {
         ...Object.entries(amenityToModes).map(([a, modes]) => ({
           value: a ,
           label: getDestinationIcon(a) + getDestinationLabel(a),
-          children: modes.map((mode) => ({ value: a+'::'+mode, label: getModeLabel(mode)  })),
+          children: modes.map((mode) => ({
+            value: a + '::' + mode,
+            label: getModeLabel(mode),
+            children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
+              value: a + '::' + mode + '::' + indicator.value,
+              label: indicator.label,
+            })),
+          })),
         })),
       ]
 
