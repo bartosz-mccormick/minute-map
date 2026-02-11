@@ -30,12 +30,12 @@ import { NestedDropdownSelect, type NestedOption } from "./components/nested-dro
 
 // https://labs.mapbox.com/location-helper/#10.04/48.137/11.5738
 const INITIAL_VIEW_STATE = {
-  longitude: 11.46147,
-  latitude:   47.87307,
-  zoom: 12,
-  pitch: 0,
-  bearing: 0,
-}
+  longitude: Number(import.meta.env.VITE_INITIAL_LONGITUDE),
+  latitude: Number(import.meta.env.VITE_INITIAL_LATITUDE),
+  zoom: Number(import.meta.env.VITE_INITIAL_ZOOM),
+  pitch: Number(import.meta.env.VITE_INITIAL_PITCH),
+  bearing: Number(import.meta.env.VITE_INITIAL_BEARING),
+};
 
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
