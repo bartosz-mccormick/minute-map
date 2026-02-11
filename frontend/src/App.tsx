@@ -553,7 +553,7 @@ export default function app() {
         </DialogContent>
       </Dialog>
 
-      <Card className="fixed bottom-4 left-4 bg-white/90 backdrop-blur-sm shadow-lg p-2">
+      <Card className="fixed bottom-4 left-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2">
         <CardContent className="p-3 space-y-3 text-sm">
 
           <NestedDropdownSelect
