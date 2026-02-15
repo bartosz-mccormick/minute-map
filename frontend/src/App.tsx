@@ -402,6 +402,26 @@ export default function app() {
       console.log('RPC payload:', { scenario: selectedScenario, _groups: payload });
       console.log('RPC response:', data);
       console.log(availableIndicators)
+
+      // calculate weighted average score
+      let totalScore = 0; // numerator: total score
+      let totalPopulation = 0; // denominator: total population
+      
+      data.forEach((item) => {
+        const pop = item.pop || 0; // population
+        const compliance = item.compliance_weighted_avg || 0; // compliance score
+        
+        // calculate the contribution of each hexagon
+        const contribution = pop * compliance;
+        
+        totalScore += contribution;
+        totalPopulation += pop;
+      });
+      // calculate weighted average score
+      const weightedAverage = totalPopulation > 0 ? totalScore / totalPopulation : 0;
+      console.log('total score (numerator):', totalScore);
+      console.log('total population (denominator):', totalPopulation);
+      console.log('weighted average score:', weightedAverage);
   
       setConfigOpen(false);
     } catch (e) {
