@@ -25,6 +25,7 @@ import {
 } from "@/components/editable-weights-table"
 
 import { NestedDropdownSelect, type NestedOption } from "./components/nested-dropdown-select"
+import { ComplianceStats } from "@/components/ui/compliance-stats"
 
 //  import hexes from './assets/data.json'; 
 
@@ -197,7 +198,7 @@ function DeckGLOverlay(props: any) {
   return null
 }
 
-function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
+function HexMap({ hexData, indicator, hoveredBin }: { hexData: any[], indicator: string, hoveredBin: { min: number; max: number } | null }) {
   // Determine if this is a compliance indicator or travel time indicator
   const isComplianceIndicator = indicator.includes("compliance");
   
@@ -218,6 +219,15 @@ function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
     return 0
   }, [indicator, isComplianceIndicator])
   
+  const getColorFunction = React.useMemo(() => 
+    colorBins({
+      attr: getIndicatorValue,
+      domain: isComplianceIndicator 
+        ? COMPLIANCE_FILL_BOUNDS.slice(1, -1)
+        : TRAVEL_TIME_FILL_BOUNDS.slice(1, -1),
+      colors: isComplianceIndicator ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS
+    }), [getIndicatorValue, isComplianceIndicator])
+  
   const layers = React.useMemo(() => [
     new H3HexagonLayer({
       id: `H3HexagonLayer-${indicator}`,
@@ -226,13 +236,23 @@ function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
       extruded: false,
       filled: true,
       getElevation: getIndicatorValue,
-      getFillColor: colorBins({
-        attr: getIndicatorValue,
-        domain: isComplianceIndicator 
-          ? COMPLIANCE_FILL_BOUNDS.slice(1, -1)
-          : TRAVEL_TIME_FILL_BOUNDS.slice(1, -1),
-        colors: isComplianceIndicator ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS
-      }),
+      getFillColor: (d: any, info: any) => {
+        const baseColor = getColorFunction(d, info);
+        
+        // if hovered bin, check if the compliance is in the range
+        if (hoveredBin) {
+          const compliance = d.compliance_weighted_avg || 0;
+          const inRange = compliance >= hoveredBin.min && 
+                         (compliance < hoveredBin.max || (compliance === 1.0 && hoveredBin.max === 1.0));
+          
+          // if not in range, reduce opacity
+          if (!inRange) {
+            return [...baseColor.slice(0, 3), 50] as [number, number, number, number];
+          }
+        }
+        
+        return baseColor;
+      },
       getLineColor: [255, 255, 255],
       lineWidthMinPixels: .5,
       getHexagon: (d: any) => d.h3_cell,
@@ -241,10 +261,10 @@ function HexMap({ hexData, indicator }: { hexData: any[],indicator:string }) {
       opacity: .3,
       updateTriggers: {
         getElevation: indicator,
-        getFillColor: indicator,
+        getFillColor: [indicator, hoveredBin],
       }
     }),
-  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator])
+  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator, hoveredBin, getColorFunction])
 
 
   return (
@@ -323,6 +343,7 @@ export default function app() {
   // map data
 
   const [hexData, setHexData] = React.useState<any[]>([]);
+  const [hoveredBin, setHoveredBin] = React.useState<{ min: number; max: number } | null>(null);
 
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
@@ -475,7 +496,7 @@ export default function app() {
   return (
     <div className="h-screen w-full relative bg-gray-50">
 
-      <HexMap hexData={hexData} indicator={selectedIndicator} />
+      <HexMap hexData={hexData} indicator={selectedIndicator} hoveredBin={hoveredBin} />
 
 
       {/* Config Button */}
@@ -591,6 +612,9 @@ export default function app() {
         </CardContent>
         {/* {selectedIndicator.split("::")[0]} */}
       </Card>
+
+      {/* Compliance Statistics */}
+      <ComplianceStats data={hexData} onHoverBin={setHoveredBin} />
     </div>
   )
 }
