@@ -8,9 +8,10 @@ interface ComplianceStatsProps {
     compliance_weighted_avg?: number
   }>
   onHoverBin?: (bin: { min: number; max: number } | null) => void
+  hoveredCellCompliance?: number | null
 }
 
-export function ComplianceStats({ data, onHoverBin }: ComplianceStatsProps) {
+export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: ComplianceStatsProps) {
   const stats = React.useMemo(() => {
     // calculate weighted average score
     let totalScore = 0
@@ -57,51 +58,86 @@ export function ComplianceStats({ data, onHoverBin }: ComplianceStatsProps) {
     }
   }, [data])
   
-  const chartOption = React.useMemo(() => ({
-    grid: {
-      left: 50,
-      right: 20,
-      top: 20,
-      bottom: 60,
-    },
-    xAxis: {
-      type: "category",
-      data: stats.bins.map(b => b.range),
-      axisLabel: {
-        rotate: 0,
-        fontSize: 11,
+  const chartOption = React.useMemo(() => {
+    // Determine which bin the hovered cell belongs to
+    let hoveredBinIndex = -1
+    if (hoveredCellCompliance !== null && hoveredCellCompliance !== undefined) {
+      for (let i = 0; i < stats.bins.length; i++) {
+        const bin = stats.bins[i]
+        if (
+          (hoveredCellCompliance >= bin.min && hoveredCellCompliance < bin.max) ||
+          (hoveredCellCompliance === 1.0 && bin.max === 1.0)
+        ) {
+          hoveredBinIndex = i
+          break
+        }
+      }
+    }
+    
+    // Create data for the hovered cell indicator bar (1/10 of the original bar height)
+    const hoveredBarData = stats.bins.map((bin, index) => 
+      index === hoveredBinIndex ? bin.count / 10 : 0
+    )
+    
+    return {
+      grid: {
+        left: 50,
+        right: 20,
+        top: 20,
+        bottom: 60,
       },
-    },
-    yAxis: {
-      type: "value",
-      name: "Count",
-      nameLocation: "middle",
-      nameGap: 35,
-      nameTextStyle: {
-        fontSize: 12,
-      },
-    },
-    series: [
-      {
-        data: stats.bins.map(b => b.count),
-        type: "bar",
-        itemStyle: {
-          color: "#3b82f6",
+      xAxis: {
+        type: "category",
+        data: stats.bins.map(b => b.range),
+        axisLabel: {
+          rotate: 0,
+          fontSize: 11,
         },
-        barWidth: "60%",
       },
-    ],
-    tooltip: {
-      trigger: "axis",
-      axisPointer: {
-        type: "shadow",
+      yAxis: {
+        type: "value",
+        name: "Count",
+        nameLocation: "middle",
+        nameGap: 35,
+        nameTextStyle: {
+          fontSize: 12,
+        },
       },
-      formatter: (params: any) => {
-        const param = params[0]
-        return `${param.name}<br/>Count: ${param.value}`
+      series: [
+        {
+          name: "Count",
+          data: stats.bins.map(b => b.count),
+          type: "bar",
+          itemStyle: {
+            color: "#3b82f6",
+          },
+          barWidth: "60%",
+          z: 1,
+        },
+        {
+          name: "Hovered Cell",
+          data: hoveredBarData,
+          type: "bar",
+          itemStyle: {
+            color: "#1e3a8a", // Dark blue
+          },
+          barWidth: "60%",
+          barGap: "-100%", // Overlap with the main bar
+          z: 2,
+        },
+      ],
+      tooltip: {
+        trigger: "axis",
+        axisPointer: {
+          type: "shadow",
+        },
+        formatter: (params: any) => {
+          const param = params[0]
+          return `${param.name}<br/>Count: ${param.value}`
+        },
       },
-    },
-  }), [stats.bins])
+    }
+  }, [stats.bins, hoveredCellCompliance])
   
   const onChartEvents = React.useMemo(() => ({
     mouseover: (params: any) => {

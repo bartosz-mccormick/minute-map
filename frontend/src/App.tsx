@@ -198,7 +198,12 @@ function DeckGLOverlay(props: any) {
   return null
 }
 
-function HexMap({ hexData, indicator, hoveredBin }: { hexData: any[], indicator: string, hoveredBin: { min: number; max: number } | null }) {
+function HexMap({ hexData, indicator, hoveredBin, onHoverCell }: { 
+  hexData: any[], 
+  indicator: string, 
+  hoveredBin: { min: number; max: number } | null,
+  onHoverCell?: (compliance: number | null) => void 
+}) {
   // Determine if this is a compliance indicator or travel time indicator
   const isComplianceIndicator = indicator.includes("compliance");
   
@@ -259,12 +264,20 @@ function HexMap({ hexData, indicator, hoveredBin }: { hexData: any[], indicator:
       wireframe: false,
       pickable: true,
       opacity: .3,
+      onHover: (info: any) => {
+        if (info.object) {
+          const compliance = info.object.compliance_weighted_avg || 0;
+          onHoverCell?.(compliance);
+        } else {
+          onHoverCell?.(null);
+        }
+      },
       updateTriggers: {
         getElevation: indicator,
         getFillColor: [indicator, hoveredBin],
       }
     }),
-  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator, hoveredBin, getColorFunction])
+  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator, hoveredBin, getColorFunction, onHoverCell])
 
 
   return (
@@ -344,6 +357,7 @@ export default function app() {
 
   const [hexData, setHexData] = React.useState<any[]>([]);
   const [hoveredBin, setHoveredBin] = React.useState<{ min: number; max: number } | null>(null);
+  const [hoveredCellCompliance, setHoveredCellCompliance] = React.useState<number | null>(null);
 
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
@@ -496,7 +510,12 @@ export default function app() {
   return (
     <div className="h-screen w-full relative bg-gray-50">
 
-      <HexMap hexData={hexData} indicator={selectedIndicator} hoveredBin={hoveredBin} />
+      <HexMap 
+        hexData={hexData} 
+        indicator={selectedIndicator} 
+        hoveredBin={hoveredBin} 
+        onHoverCell={setHoveredCellCompliance}
+      />
 
 
       {/* Config Button */}
@@ -614,7 +633,11 @@ export default function app() {
       </Card>
 
       {/* Compliance Statistics */}
-      <ComplianceStats data={hexData} onHoverBin={setHoveredBin} />
+      <ComplianceStats 
+        data={hexData} 
+        onHoverBin={setHoveredBin} 
+        hoveredCellCompliance={hoveredCellCompliance}
+      />
     </div>
   )
 }
