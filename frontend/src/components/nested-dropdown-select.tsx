@@ -70,10 +70,26 @@ export function NestedDropdownSelect({
     return findPathByValue(options, value)
   }, [options, value])
 
-  const displayLabel = React.useMemo(() => {
-    if (!value || !selectedPath?.length) return placeholder
-    if (!showPathInLabel) return selectedPath[selectedPath.length - 1]?.label ?? placeholder
-    return selectedPath.map((n) => n.label).join(pathSeparator)
+  const displayLabelElement = React.useMemo(() => {
+    if (!value || !selectedPath?.length) return <span>{placeholder}</span>
+    if (!showPathInLabel) {
+      return <span>{selectedPath[selectedPath.length - 1]?.label ?? placeholder}</span>
+    }
+    const labels = selectedPath.map((n) => n.label)
+    // If pathSeparator contains ":", wrap after each colon
+    if (pathSeparator.includes(":")) {
+      return (
+        <span className="whitespace-pre-line text-left">
+          {labels.map((label, idx) => (
+            <React.Fragment key={idx}>
+              {idx > 0 && ":\n"}
+              {label}
+            </React.Fragment>
+          ))}
+        </span>
+      )
+    }
+    return <span>{labels.join(pathSeparator)}</span>
   }, [value, selectedPath, placeholder, showPathInLabel, pathSeparator])
 
   const handleSelect = (nextValue: string) => {
@@ -126,14 +142,14 @@ export function NestedDropdownSelect({
           variant="outline"
           className={[
             widthClassName,
-            "justify-between bg-transparent",
+            "justify-between bg-transparent h-auto min-h-[2.5rem] items-start py-2",
             className,
           ]
             .filter(Boolean)
             .join(" ")}
         >
-          {displayLabel}
-          <ChevronDown className="ml-2 size-4 opacity-50" />
+          <span className="flex-1 text-left">{displayLabelElement}</span>
+          <ChevronDown className="ml-2 size-4 opacity-50 shrink-0 mt-0.5" />
         </Button>
       </DropdownMenuTrigger>
 

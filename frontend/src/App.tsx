@@ -65,6 +65,131 @@ const TRAVEL_TIME_FILL_COLORS: Color[] = [
   [74, 20, 134],
 ]
 
+type ThresholdPreset = Omit<Threshold, "id">
+
+interface PresetDefinition {
+  label: string
+  weights: Record<string, number>
+  thresholds: Record<string, ThresholdPreset>
+}
+
+// All presets defined here; add more entries as needed.
+const PRESETS: Record<string, PresetDefinition> = {
+  walk_placeholder: {
+    label: "European Cities",
+    weights: {
+      grocery: 0.88,
+      pharmacy: 0.63,
+      atm_bank: 0.1,
+      post: 0.4,
+      gp: 0.56,
+      restaurant: 0.74,
+      cafe: 0.74,
+      bar: 0.39,
+      bakery: 0.54,
+      school: 0.13,
+      kindergarten: 0.13,
+      library: 0.3,
+      sport: 0.56,
+      park: 0.82,
+      playground: 0.12,
+    },
+    thresholds: {
+      grocery: {
+        selectedDestinations: ["grocery"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 10,
+      },
+      pharmacy: {
+        selectedDestinations: ["pharmacy"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 10,
+      },
+      atm_bank: {
+        selectedDestinations: ["atm_bank"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      post: {
+        selectedDestinations: ["post"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 10,
+      },
+      gp: {
+        selectedDestinations: ["gp"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      restaurant: {
+        selectedDestinations: ["restaurant"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      cafe: {
+        selectedDestinations: ["cafe"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      bar: {
+        selectedDestinations: ["bar"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      bakery: {
+        selectedDestinations: ["bakery"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 10,
+      },
+      school: {
+        selectedDestinations: ["school"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      kindergarten: {
+        selectedDestinations: ["kindergarten"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      library: {
+        selectedDestinations: ["library"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      sport: {
+        selectedDestinations: ["sport"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      park: {
+        selectedDestinations: ["park"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 15,
+      },
+      playground: {
+        selectedDestinations: ["playground"],
+        quantity: 1,
+        transportMode: "walk",
+        travelTime: 10,
+      },
+    },
+  },
+
+}
+
 
 
 
@@ -345,8 +470,11 @@ const travelScenarios = [
 
 export default function app() {
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
+  const [selectedPreset, setSelectedPreset] = React.useState("custom")
   const [thresholds, setThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
   const [weights, setWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
+  const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
+  const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
   const [selectedIndicator, setSelectedIndicator] = React.useState("compliance_weighted_avg")
   const [availableIndicators, setAvailableIndicators] = React.useState<NestedOption[]>(
@@ -503,8 +631,42 @@ export default function app() {
 
   const handleReset = () => {
     setSelectedScenario(INITIAL_SCENARIO)
+    setSelectedPreset("custom")
     setThresholds(INITIAL_THRESHOLDS)
     setWeights(INITIAL_WEIGHTS)
+    setCustomThresholds(INITIAL_THRESHOLDS)
+    setCustomWeights(INITIAL_WEIGHTS)
+  }
+
+  const applyPreset = (presetId: string) => {
+    if (presetId === "custom") return
+
+    const preset = PRESETS[presetId]
+    if (!preset) return
+
+    const nextWeights: Weight[] = DESTINATIONS.map((d) => ({
+      id: `weight-${d.value}`,
+      selectedDestinations: [d.value],
+      weight: preset.weights[d.value] ?? 1,
+    }))
+
+    const nextThresholds: Threshold[] = DESTINATIONS.map((d) => {
+      const tPreset =
+        preset.thresholds[d.value] ?? {
+          selectedDestinations: [d.value],
+          quantity: 1,
+          transportMode: "walk",
+          travelTime: 10,
+        }
+
+      return {
+        id: crypto.randomUUID(),
+        ...tPreset,
+      }
+    })
+
+    setWeights(nextWeights)
+    setThresholds(nextThresholds)
   }
 
   return (
@@ -538,18 +700,55 @@ export default function app() {
                 <CardTitle>Travel Time Scenario</CardTitle>
               </CardHeader>
               <CardContent>
-                <Select value={selectedScenario} onValueChange={setSelectedScenario}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a travel scenario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {travelScenarios.map((scenario) => (
-                      <SelectItem key={scenario.value} value={scenario.value}>
-                        {scenario.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Scenario</div>
+                    <Select value={selectedScenario} onValueChange={setSelectedScenario}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a travel scenario" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {travelScenarios.map((scenario) => (
+                          <SelectItem key={scenario.value} value={scenario.value}>
+                            {scenario.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Preset</div>
+                    <Select
+                      value={selectedPreset}
+                      onValueChange={(value) => {
+                        if (value === "custom") {
+                          setSelectedPreset("custom")
+                          setThresholds(customThresholds)
+                          setWeights(customWeights)
+                        } else {
+                          setSelectedPreset(value)
+                          applyPreset(value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a preset" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="custom">Custom</SelectItem>
+                        {Object.entries(PRESETS).map(([id, preset]) => (
+                          <SelectItem key={id} value={id}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-muted-foreground">
+                      Selecting a preset will overwrite weights and thresholds.
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -561,7 +760,11 @@ export default function app() {
               <CardContent>
                 <EditableWeightsTable
                   weights={weights}
-                  setWeights={setWeights}
+                  setWeights={(next) => {
+                    setSelectedPreset("custom")
+                    setWeights(next)
+                    setCustomWeights(next)
+                  }}
                   destinations={DESTINATIONS}
                 />
               </CardContent>
@@ -575,7 +778,11 @@ export default function app() {
               <CardContent>
                 <EditableThresholdsTable
                   thresholds={thresholds}
-                  setThresholds={setThresholds}
+                  setThresholds={(next) => {
+                    setSelectedPreset("custom")
+                    setThresholds(next)
+                    setCustomThresholds(next)
+                  }}
                   transportModes={TRANSPORT_MODES}
                   destinations={DESTINATIONS}
                   maxTravelTime={MAX_TT}
