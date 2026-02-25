@@ -37,14 +37,15 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
     
     data.forEach((item) => {
       const compliance = item.compliance_weighted_avg || 0
+      const pop = item.pop || 0
       for (const bin of bins) {
         if (compliance >= bin.min && compliance < bin.max) {
-          bin.count++
+          bin.count += pop
           break
         }
         // handle compliance === 1.0 case
         if (compliance === 1.0 && bin.max === 1.0) {
-          bin.count++
+          bin.count += pop
           break
         }
       }
@@ -96,7 +97,7 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
       },
       yAxis: {
         type: "value",
-        name: "Count",
+        name: "Population",
         nameLocation: "middle",
         nameGap: 35,
         nameTextStyle: {
@@ -105,7 +106,7 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
       },
       series: [
         {
-          name: "Count",
+          name: "Population",
           data: stats.bins.map(b => b.count),
           type: "bar",
           itemStyle: {
@@ -115,7 +116,7 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
           z: 1,
         },
         {
-          name: "Hovered Cell",
+          name: "Hovered Cell Pop",
           data: hoveredBarData,
           type: "bar",
           itemStyle: {
@@ -133,7 +134,7 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
         },
         formatter: (params: any) => {
           const param = params[0]
-          return `${param.name}<br/>Count: ${param.value}`
+          return `${param.name}<br/>Population: ${Math.round(param.value)}`
         },
       },
     }
