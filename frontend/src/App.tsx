@@ -1,12 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { Settings, Loader2 } from "lucide-react"
-import { Map, NavigationControl, useControl } from "react-map-gl/maplibre"
+import { Settings, Loader2, Pencil, Trash2 } from "lucide-react"
+import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibre"
+import { createPortal } from "react-dom"
 import { H3HexagonLayer } from "deck.gl"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import "maplibre-gl/dist/maplibre-gl.css"
 import {colorBins} from "@deck.gl/carto"
+import MapboxDraw from "@mapbox/mapbox-gl-draw"
+import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
+import FreehandMode from "mapbox-gl-draw-freehand-mode"
 
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -323,12 +327,168 @@ function DeckGLOverlay(props: any) {
   return null
 }
 
-function HexMap({ hexData, indicator, selectedBin, selectedCell, onCellClick }: { 
-  hexData: any[], 
-  indicator: string, 
-  selectedBin: { min: number; max: number } | null,
-  selectedCell: { h3_cell: string; compliance: number } | null,
-  onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void 
+type DrawEvent = { features: GeoJSON.Feature[] }
+
+// Minimal interface for the MapLibre map's event system, used to bind draw events
+type MapWithEvents = {
+  on: (event: string, fn: (...args: unknown[]) => void) => void
+  off: (event: string, fn: (...args: unknown[]) => void) => void
+}
+
+// A lightweight IControl-compatible class that provides a DOM container for React portals.
+// Using a portal ensures the buttons live inside maplibre's control DOM hierarchy and
+// are never covered by the deck.gl canvas overlay.
+class ControlContainer {
+  readonly el: HTMLDivElement
+  constructor() { this.el = document.createElement("div") }
+  onAdd() { return this.el }
+  onRemove() { this.el.remove() }
+}
+
+function DrawControl({
+  drawRef,
+  onUpdate,
+  onDelete,
+}: {
+  drawRef?: React.MutableRefObject<MapboxDraw | null>
+  onUpdate: (e: DrawEvent) => void
+  onDelete: (e: DrawEvent) => void
+}) {
+  const onUpdateRef = React.useRef(onUpdate)
+  const onDeleteRef = React.useRef(onDelete)
+
+  React.useEffect(() => {
+    onUpdateRef.current = onUpdate
+    onDeleteRef.current = onDelete
+  })
+
+  const stableOnUpdate = React.useCallback(
+    (e: unknown) => onUpdateRef.current(e as DrawEvent),
+    []
+  )
+  const stableOnDelete = React.useCallback(
+    (e: unknown) => onDeleteRef.current(e as DrawEvent),
+    []
+  )
+
+  // MapboxDraw's IControl is for Mapbox GL, not MapLibre GL, so we cast to bypass the type mismatch.
+  // At runtime, MapboxDraw is fully compatible with MapLibre GL.
+  const draw = (useControl as (...args: unknown[]) => MapboxDraw)(
+    () => new MapboxDraw({
+      displayControlsDefault: false,
+      defaultMode: "simple_select",
+      modes: {
+        ...MapboxDraw.modes,
+        draw_polygon: FreehandMode,
+      },
+    }),
+    ({ map }: { map: MapWithEvents }) => {
+      map.on("draw.create", stableOnUpdate)
+      map.on("draw.update", stableOnUpdate)
+      map.on("draw.delete", stableOnDelete)
+    },
+    ({ map }: { map: MapWithEvents }) => {
+      map.off("draw.create", stableOnUpdate)
+      map.off("draw.update", stableOnUpdate)
+      map.off("draw.delete", stableOnDelete)
+    },
+  )
+
+  React.useEffect(() => {
+    if (drawRef) drawRef.current = draw
+    return () => { if (drawRef) drawRef.current = null }
+  }, [draw, drawRef])
+
+  return null
+}
+
+function DrawToolbar({ drawRef }: { drawRef: React.MutableRefObject<MapboxDraw | null> }) {
+  const [isDrawing, setIsDrawing] = React.useState(false)
+  const { current: map } = useMap()
+
+  // Track draw mode changes triggered by MapboxDraw itself (e.g. finishing a polygon)
+  React.useEffect(() => {
+    if (!map) return
+    const handleModeChange = (e: unknown) => {
+      setIsDrawing((e as { mode: string }).mode === "draw_polygon")
+    }
+    map.on("draw.modechange", handleModeChange as (...args: unknown[]) => void)
+    return () => {
+      map.off("draw.modechange", handleModeChange as (...args: unknown[]) => void)
+    }
+  }, [map])
+
+  const container = (useControl as (...args: unknown[]) => ControlContainer)(
+    () => new ControlContainer(),
+    { position: "top-left" }
+  )
+
+  const handleToggleDraw = React.useCallback(() => {
+    const draw = drawRef.current
+    if (!draw) return
+    if (draw.getMode() === "draw_polygon") {
+      draw.changeMode("simple_select")
+    } else {
+      draw.changeMode("draw_polygon")
+    }
+  }, [drawRef])
+
+  const handleDelete = React.useCallback(() => {
+    drawRef.current?.trash()
+  }, [drawRef])
+
+  const btnStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 29,
+    height: 29,
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: 0,
+  }
+
+  return createPortal(
+    <div className="maplibregl-ctrl maplibregl-ctrl-group">
+      <button
+        title={isDrawing ? "cancel drawing" : "draw polygon"}
+        onClick={handleToggleDraw}
+        style={{
+          ...btnStyle,
+          backgroundColor: isDrawing ? "#dbeafe" : undefined,
+        }}
+      >
+        <Pencil size={15} color={isDrawing ? "#2563eb" : "#333"} />
+      </button>
+      <button
+        title="delete selected polygon"
+        onClick={handleDelete}
+        style={btnStyle}
+      >
+        <Trash2 size={15} color="#333" />
+      </button>
+    </div>,
+    container.el
+  )
+}
+
+function HexMap({
+  hexData,
+  indicator,
+  selectedBin,
+  selectedCell,
+  onCellClick,
+  onPolygonsChange,
+  drawRef,
+}: {
+  hexData: any[]
+  indicator: string
+  selectedBin: { min: number; max: number } | null
+  selectedCell: { h3_cell: string; compliance: number } | null
+  onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
+  onPolygonsChange?: (features: GeoJSON.Feature[]) => void
+  drawRef?: React.MutableRefObject<MapboxDraw | null>
 }) {
   // Determine if this is a compliance indicator or travel time indicator
   const isComplianceIndicator = indicator.includes("compliance");
@@ -350,107 +510,154 @@ function HexMap({ hexData, indicator, selectedBin, selectedCell, onCellClick }: 
     return 0
   }, [indicator, isComplianceIndicator])
   
-  const getColorFunction = React.useMemo(() => 
-    colorBins({
-      attr: getIndicatorValue,
-      domain: isComplianceIndicator 
-        ? COMPLIANCE_FILL_BOUNDS.slice(1, -1)
-        : TRAVEL_TIME_FILL_BOUNDS.slice(1, -1),
-      colors: isComplianceIndicator ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS
-    }), [getIndicatorValue, isComplianceIndicator])
+  const getColorFunction = React.useMemo(
+    () =>
+      colorBins({
+        attr: getIndicatorValue,
+        domain: isComplianceIndicator
+          ? COMPLIANCE_FILL_BOUNDS.slice(1, -1)
+          : TRAVEL_TIME_FILL_BOUNDS.slice(1, -1),
+        colors: isComplianceIndicator ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS,
+      }),
+    [getIndicatorValue, isComplianceIndicator]
+  )
   
-  const layers = React.useMemo(() => [
-    new H3HexagonLayer({
-      id: `H3HexagonLayer-${indicator}`,
-      data: hexData,
-      elevationScale: 1000,
-      extruded: false,
-      filled: true,
-      getElevation: getIndicatorValue,
-      getFillColor: (d: any, info: any) => {
-        const baseColor = getColorFunction(d, info);
-        const isSelectedCell = selectedCell && d.h3_cell === selectedCell.h3_cell;
-        
-        // Selected cell: fixed dark blue fill
-        if (isSelectedCell) {
-          return [30, 58, 138, 255] as [number, number, number, number];
-        }
-        
-        // Selected bin: dim cells not in range
-        if (selectedBin) {
-          const compliance = d.compliance_weighted_avg || 0;
-          const inRange = compliance >= selectedBin.min && 
-                         (compliance < selectedBin.max || (compliance === 1.0 && selectedBin.max === 1.0));
-          if (!inRange) {
-            return [...baseColor.slice(0, 3), 50] as [number, number, number, number];
+  const layers = React.useMemo(
+    () => [
+      new H3HexagonLayer({
+        id: `H3HexagonLayer-${indicator}`,
+        data: hexData,
+        elevationScale: 1000,
+        extruded: false,
+        filled: true,
+        getElevation: getIndicatorValue,
+        getFillColor: (d: any, info: any) => {
+          const baseColor = getColorFunction(d, info)
+          const isSelectedCell = selectedCell && d.h3_cell === selectedCell.h3_cell
+
+          // Selected cell: fixed dark blue fill
+          if (isSelectedCell) {
+            return [30, 58, 138, 255] as [number, number, number, number]
+          }
+
+          // Selected bin: dim cells not in range
+          if (selectedBin) {
+            const compliance = d.compliance_weighted_avg || 0
+            const inRange =
+              compliance >= selectedBin.min &&
+              (compliance < selectedBin.max ||
+                (compliance === 1.0 && selectedBin.max === 1.0))
+            if (!inRange) {
+              return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
+            }
+          }
+
+          return baseColor
+        },
+        getLineColor: (d: any) => {
+          if (selectedCell && d.h3_cell === selectedCell.h3_cell) {
+            return [30, 58, 138, 255] as [number, number, number, number] // Dark blue border
+          }
+          return [255, 255, 255, 255] as [number, number, number, number]
+        },
+        lineWidthMinPixels: 1,
+        getHexagon: (d: any) => d.h3_cell,
+        wireframe: false,
+        pickable: true,
+        opacity: 0.3,
+        updateTriggers: {
+          getElevation: indicator,
+          getFillColor: [indicator, selectedBin, selectedCell],
+          getLineColor: [selectedCell],
+        },
+      }),
+    ],
+    [hexData, getIndicatorValue, indicator, selectedBin, selectedCell, getColorFunction]
+  )
+
+  const handlePolygonUpdate = React.useCallback(
+    (e: DrawEvent) => {
+      if (!onPolygonsChange) return
+      const draw = drawRef?.current
+
+      if (draw) {
+        const all = draw.getAll()
+        const features = all.features as GeoJSON.Feature[]
+
+        if (features.length > 1) {
+          const idsToDelete = features
+            .slice(0, -1)
+            .map((f: any) => f.id)
+            .filter((id): id is string => typeof id === "string")
+          if (idsToDelete.length > 0) {
+            draw.delete(idsToDelete)
           }
         }
-        
-        return baseColor;
-      },
-      getLineColor: (d: any) => {
-        if (selectedCell && d.h3_cell === selectedCell.h3_cell) {
-          return [30, 58, 138, 255] as [number, number, number, number]; // Dark blue border
-        }
-        return [255, 255, 255, 255] as [number, number, number, number];
-      },
-      lineWidthMinPixels: 1,
-      getHexagon: (d: any) => d.h3_cell,
-      wireframe: false,
-      pickable: true,
-      opacity: .3,
-      updateTriggers: {
-        getElevation: indicator,
-        getFillColor: [indicator, selectedBin, selectedCell],
-        getLineColor: [selectedCell],
-      }
-    }),
-  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator, selectedBin, selectedCell, getColorFunction])
 
+        const remaining = draw.getAll().features as GeoJSON.Feature[]
+        onPolygonsChange(remaining)
+      } else {
+        const features = e.features
+        const last = features[features.length - 1]
+        onPolygonsChange(last ? [last] : [])
+      }
+    },
+    [onPolygonsChange, drawRef]
+  )
+
+  const handlePolygonDelete = React.useCallback(
+    (e: DrawEvent) => {
+      if (!onPolygonsChange) return
+      const draw = drawRef?.current
+
+      if (draw) {
+        onPolygonsChange(draw.getAll().features as GeoJSON.Feature[])
+      } else {
+        onPolygonsChange(e.features)
+      }
+    },
+    [onPolygonsChange, drawRef]
+  )
 
   return (
     <Map
       initialViewState={INITIAL_VIEW_STATE}
-      mapStyle= {MAP_STYLE}
+      mapStyle={MAP_STYLE}
       style={{ width: "100%", height: "100%" }}
     >
-<DeckGLOverlay
-  layers={layers}
-  onClick={({ object }: any) => {
-    onCellClick?.(object ?? null);
-  }}
-  getTooltip={({ object }: any) => {
-    if (!object) return null;
+      <DeckGLOverlay
+        layers={layers}
+        onClick={({ object }: any) => {
+          onCellClick?.(object ?? null);
+        }}
+        getTooltip={({ object }: any) => {
+          if (!object) return null;
 
-    const amenities = object?.amenities ?? {};
-    const lines: string[] = [];
-    const lines2: string[] = [];
+          const amenities = object?.amenities ?? {};
+          const lines: string[] = [];
+          const lines2: string[] = [];
 
-    // Iterate through amenities
-    Object.entries(amenities).forEach(([amenity, amenityData]: [string, any]) => {
-      // Check for walk mode (or other modes)
-      const walkData = amenityData?.walk;
-      if (walkData && typeof walkData === "object") {
-        const t = walkData?.min_travel_time;
-        const c = walkData?.compliance;
-        const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`;
-        let complies: string;
-        if (c === 1) {
-          complies = '✅'
-        } else if (c === 0) {
-          complies = '❌'
-        } else {
-          complies = '⚠️'
-        }
-        lines.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${display} ${complies}`);
-        
-        const total_n = walkData?.total_n;
-        lines2.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${total_n}`);
-      }
-    });
+          Object.entries(amenities).forEach(([amenity, amenityData]: [string, any]) => {
+            const walkData = amenityData?.walk;
+            if (walkData && typeof walkData === "object") {
+              const t = walkData?.min_travel_time;
+              const c = walkData?.compliance;
+              const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`;
+              let complies: string;
+              if (c === 1) {
+                complies = '✅'
+              } else if (c === 0) {
+                complies = '❌'
+              } else {
+                complies = '⚠️'
+              }
+              lines.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${display} ${complies}`);
+              const total_n = walkData?.total_n;
+              lines2.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${total_n}`);
+            }
+          });
 
-    //return `Compliance: ${Math.round(object.compliance_weighted_avg*100)}%
-    return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%
+          return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%
     ${
       indicator !== "compliance_weighted_avg"
         ? isComplianceIndicator
@@ -458,10 +665,15 @@ function HexMap({ hexData, indicator, selectedBin, selectedCell, onCellClick }: 
             : `${getIndicatorValue(object)} minutes`
         : ""
     }`
-
-  }}
-/>
+        }}
+      />
       <NavigationControl position="top-left" />
+      <DrawControl
+        drawRef={drawRef}
+        onUpdate={handlePolygonUpdate}
+        onDelete={handlePolygonDelete}
+      />
+      <DrawToolbar drawRef={drawRef as React.MutableRefObject<MapboxDraw | null>} />
     </Map>
   )
 }
@@ -488,11 +700,13 @@ export default function app() {
   )
 
   // map data
-
   const [hexData, setHexData] = React.useState<any[]>([]);
   const [selectedBin, setSelectedBin] = React.useState<{ min: number; max: number } | null>(null);
   const [selectedCell, setSelectedCell] = React.useState<{ h3_cell: string; compliance: number } | null>(null);
 
+  // polygon drawing (only keep the last polygon)
+  const [, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
+  const drawRef = React.useRef<MapboxDraw | null>(null)
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
 
@@ -691,8 +905,9 @@ export default function app() {
             setSelectedCell(prev => prev?.h3_cell === cell.h3_cell ? null : cell);
           }
         }}
+        onPolygonsChange={setDrawnPolygons}
+        drawRef={drawRef}
       />
-
 
       {/* Config Button */}
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>

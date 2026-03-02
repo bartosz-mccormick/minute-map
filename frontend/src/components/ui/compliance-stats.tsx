@@ -7,12 +7,11 @@ interface ComplianceStatsProps {
     pop?: number
     compliance_weighted_avg?: number
   }>
-  selectedBin: { min: number; max: number } | null
-  onSelectBin: (bin: { min: number; max: number } | null) => void
-  selectedCellCompliance?: number | null
+  onHoverBin?: (bin: { min: number; max: number } | null) => void
+  hoveredCellCompliance?: number | null
 }
 
-export function ComplianceStats({ data, selectedBin, onSelectBin, selectedCellCompliance }: ComplianceStatsProps) {
+export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: ComplianceStatsProps) {
   const stats = React.useMemo(() => {
     // calculate weighted average score
     let totalScore = 0
@@ -61,30 +60,25 @@ export function ComplianceStats({ data, selectedBin, onSelectBin, selectedCellCo
   }, [data])
   
   const chartOption = React.useMemo(() => {
-    // Determine which bin the selected cell belongs to
-    let selectedCellBinIndex = -1
-    if (selectedCellCompliance !== null && selectedCellCompliance !== undefined) {
+    // Determine which bin the hovered cell belongs to
+    let hoveredBinIndex = -1
+    if (hoveredCellCompliance !== null && hoveredCellCompliance !== undefined) {
       for (let i = 0; i < stats.bins.length; i++) {
         const bin = stats.bins[i]
         if (
-          (selectedCellCompliance >= bin.min && selectedCellCompliance < bin.max) ||
-          (selectedCellCompliance === 1.0 && bin.max === 1.0)
+          (hoveredCellCompliance >= bin.min && hoveredCellCompliance < bin.max) ||
+          (hoveredCellCompliance === 1.0 && bin.max === 1.0)
         ) {
-          selectedCellBinIndex = i
+          hoveredBinIndex = i
           break
         }
       }
     }
     
-    // Create data for the selected cell indicator bar (1/10 of the original bar height)
-    const overlayBarData = stats.bins.map((bin, index) => 
-      index === selectedCellBinIndex ? bin.count / 10 : 0
+    // Create data for the hovered cell indicator bar (1/10 of the original bar height)
+    const hoveredBarData = stats.bins.map((bin, index) => 
+      index === hoveredBinIndex ? bin.count / 10 : 0
     )
-    
-    // Which bar is selected (for map highlight + bar shadow)
-    const selectedBinIndex = selectedBin 
-      ? stats.bins.findIndex(b => b.min === selectedBin.min && b.max === selectedBin.max)
-      : -1
     
     return {
       grid: {
@@ -116,21 +110,14 @@ export function ComplianceStats({ data, selectedBin, onSelectBin, selectedCellCo
           data: stats.bins.map(b => b.count),
           type: "bar",
           itemStyle: {
-            color: (params: any) =>
-              params.dataIndex === selectedBinIndex ? "#1d4ed8" : "#3b82f6",
-          },
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowColor: "rgba(0,0,0,0.2)",
-            },
+            color: "#3b82f6",
           },
           barWidth: "60%",
           z: 1,
         },
         {
-          name: "Selected Cell Pop",
-          data: overlayBarData,
+          name: "Hovered Cell Pop",
+          data: hoveredBarData,
           type: "bar",
           itemStyle: {
             color: "#1e3a8a", // Dark blue
@@ -151,22 +138,19 @@ export function ComplianceStats({ data, selectedBin, onSelectBin, selectedCellCo
         },
       },
     }
-  }, [stats.bins, selectedCellCompliance, selectedBin])
+  }, [stats.bins, hoveredCellCompliance])
   
   const onChartEvents = React.useMemo(() => ({
-    click: (params: any) => {
-      if (params.componentType === "series" && params.seriesIndex === 0 && params.dataIndex !== undefined) {
+    mouseover: (params: any) => {
+      if (params.componentType === 'series' && params.dataIndex !== undefined) {
         const bin = stats.bins[params.dataIndex]
-        const newBin = { min: bin.min, max: bin.max }
-        // Toggle: if same bin clicked again, deselect
-        onSelectBin(
-          selectedBin && selectedBin.min === newBin.min && selectedBin.max === newBin.max
-            ? null
-            : newBin
-        )
+        onHoverBin?.({ min: bin.min, max: bin.max })
       }
     },
-  }), [stats.bins, selectedBin, onSelectBin])
+    mouseout: () => {
+      onHoverBin?.(null)
+    },
+  }), [stats.bins, onHoverBin])
   
   if (data.length === 0) return null
   
