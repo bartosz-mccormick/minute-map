@@ -7,11 +7,16 @@ interface ComplianceStatsProps {
     pop?: number
     compliance_weighted_avg?: number
   }>
-  onHoverBin?: (bin: { min: number; max: number } | null) => void
-  hoveredCellCompliance?: number | null
+  selectedBin: { min: number; max: number } | null
+  onSelectBin: React.Dispatch<React.SetStateAction<{ min: number; max: number } | null>>
+  selectedCellCompliance?: number
 }
 
-export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: ComplianceStatsProps) {
+export function ComplianceStats({
+  data,
+  onSelectBin,
+  selectedCellCompliance,
+}: ComplianceStatsProps) {
   const stats = React.useMemo(() => {
     // calculate weighted average score
     let totalScore = 0
@@ -62,12 +67,12 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
   const chartOption = React.useMemo(() => {
     // Determine which bin the hovered cell belongs to
     let hoveredBinIndex = -1
-    if (hoveredCellCompliance !== null && hoveredCellCompliance !== undefined) {
+    if (selectedCellCompliance !== null && selectedCellCompliance !== undefined) {
       for (let i = 0; i < stats.bins.length; i++) {
         const bin = stats.bins[i]
         if (
-          (hoveredCellCompliance >= bin.min && hoveredCellCompliance < bin.max) ||
-          (hoveredCellCompliance === 1.0 && bin.max === 1.0)
+          (selectedCellCompliance >= bin.min && selectedCellCompliance < bin.max) ||
+          (selectedCellCompliance === 1.0 && bin.max === 1.0)
         ) {
           hoveredBinIndex = i
           break
@@ -138,19 +143,22 @@ export function ComplianceStats({ data, onHoverBin, hoveredCellCompliance }: Com
         },
       },
     }
-  }, [stats.bins, hoveredCellCompliance])
+  }, [stats.bins, selectedCellCompliance])
   
-  const onChartEvents = React.useMemo(() => ({
-    mouseover: (params: any) => {
-      if (params.componentType === 'series' && params.dataIndex !== undefined) {
-        const bin = stats.bins[params.dataIndex]
-        onHoverBin?.({ min: bin.min, max: bin.max })
-      }
-    },
-    mouseout: () => {
-      onHoverBin?.(null)
-    },
-  }), [stats.bins, onHoverBin])
+  const onChartEvents = React.useMemo(
+    () => ({
+      mouseover: (params: any) => {
+        if (params.componentType === "series" && params.dataIndex !== undefined) {
+          const bin = stats.bins[params.dataIndex]
+          onSelectBin({ min: bin.min, max: bin.max })
+        }
+      },
+      mouseout: () => {
+        onSelectBin(null)
+      },
+    }),
+    [stats.bins, onSelectBin]
+  )
   
   if (data.length === 0) return null
   
