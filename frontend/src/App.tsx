@@ -323,11 +323,12 @@ function DeckGLOverlay(props: any) {
   return null
 }
 
-function HexMap({ hexData, indicator, hoveredBin, onHoverCell }: { 
+function HexMap({ hexData, indicator, selectedBin, selectedCell, onCellClick }: { 
   hexData: any[], 
   indicator: string, 
-  hoveredBin: { min: number; max: number } | null,
-  onHoverCell?: (compliance: number | null) => void 
+  selectedBin: { min: number; max: number } | null,
+  selectedCell: { h3_cell: string; compliance: number } | null,
+  onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void 
 }) {
   // Determine if this is a compliance indicator or travel time indicator
   const isComplianceIndicator = indicator.includes("compliance");
@@ -368,14 +369,18 @@ function HexMap({ hexData, indicator, hoveredBin, onHoverCell }: {
       getElevation: getIndicatorValue,
       getFillColor: (d: any, info: any) => {
         const baseColor = getColorFunction(d, info);
+        const isSelectedCell = selectedCell && d.h3_cell === selectedCell.h3_cell;
         
-        // if hovered bin, check if the compliance is in the range
-        if (hoveredBin) {
+        // Selected cell: fixed dark blue fill
+        if (isSelectedCell) {
+          return [30, 58, 138, 255] as [number, number, number, number];
+        }
+        
+        // Selected bin: dim cells not in range
+        if (selectedBin) {
           const compliance = d.compliance_weighted_avg || 0;
-          const inRange = compliance >= hoveredBin.min && 
-                         (compliance < hoveredBin.max || (compliance === 1.0 && hoveredBin.max === 1.0));
-          
-          // if not in range, reduce opacity
+          const inRange = compliance >= selectedBin.min && 
+                         (compliance < selectedBin.max || (compliance === 1.0 && selectedBin.max === 1.0));
           if (!inRange) {
             return [...baseColor.slice(0, 3), 50] as [number, number, number, number];
           }
@@ -383,26 +388,24 @@ function HexMap({ hexData, indicator, hoveredBin, onHoverCell }: {
         
         return baseColor;
       },
-      getLineColor: [255, 255, 255],
-      lineWidthMinPixels: .5,
+      getLineColor: (d: any) => {
+        if (selectedCell && d.h3_cell === selectedCell.h3_cell) {
+          return [30, 58, 138, 255] as [number, number, number, number]; // Dark blue border
+        }
+        return [255, 255, 255, 255] as [number, number, number, number];
+      },
+      lineWidthMinPixels: 1,
       getHexagon: (d: any) => d.h3_cell,
       wireframe: false,
       pickable: true,
       opacity: .3,
-      onHover: (info: any) => {
-        if (info.object) {
-          const compliance = info.object.compliance_weighted_avg || 0;
-          onHoverCell?.(compliance);
-        } else {
-          onHoverCell?.(null);
-        }
-      },
       updateTriggers: {
         getElevation: indicator,
-        getFillColor: [indicator, hoveredBin],
+        getFillColor: [indicator, selectedBin, selectedCell],
+        getLineColor: [selectedCell],
       }
     }),
-  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator, hoveredBin, getColorFunction, onHoverCell])
+  ], [hexData, getIndicatorValue, isComplianceIndicator, indicator, selectedBin, selectedCell, getColorFunction])
 
 
   return (
@@ -413,6 +416,9 @@ function HexMap({ hexData, indicator, hoveredBin, onHoverCell }: {
     >
 <DeckGLOverlay
   layers={layers}
+  onClick={({ object }: any) => {
+    onCellClick?.(object ?? null);
+  }}
   getTooltip={({ object }: any) => {
     if (!object) return null;
 
@@ -484,8 +490,8 @@ export default function app() {
   // map data
 
   const [hexData, setHexData] = React.useState<any[]>([]);
-  const [hoveredBin, setHoveredBin] = React.useState<{ min: number; max: number } | null>(null);
-  const [hoveredCellCompliance, setHoveredCellCompliance] = React.useState<number | null>(null);
+  const [selectedBin, setSelectedBin] = React.useState<{ min: number; max: number } | null>(null);
+  const [selectedCell, setSelectedCell] = React.useState<{ h3_cell: string; compliance: number } | null>(null);
 
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
@@ -675,8 +681,16 @@ export default function app() {
       <HexMap 
         hexData={hexData} 
         indicator={selectedIndicator} 
-        hoveredBin={hoveredBin} 
-        onHoverCell={setHoveredCellCompliance}
+        selectedBin={selectedBin} 
+        selectedCell={selectedCell}
+        onCellClick={(obj) => {
+          if (!obj) {
+            setSelectedCell(null);
+          } else {
+            const cell = { h3_cell: obj.h3_cell, compliance: obj.compliance_weighted_avg || 0 };
+            setSelectedCell(prev => prev?.h3_cell === cell.h3_cell ? null : cell);
+          }
+        }}
       />
 
 
@@ -842,8 +856,9 @@ export default function app() {
       {/* Compliance Statistics */}
       <ComplianceStats 
         data={hexData} 
-        onHoverBin={setHoveredBin} 
-        hoveredCellCompliance={hoveredCellCompliance}
+        selectedBin={selectedBin}
+        onSelectBin={setSelectedBin}
+        selectedCellCompliance={selectedCell?.compliance}
       />
     </div>
   )
