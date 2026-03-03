@@ -247,7 +247,8 @@ const INITIAL_THRESHOLDS: Threshold[] = []
 
 const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
 [
-  { value: "compliance_weighted_avg", label: "Compliance" }
+  { value: "compliance_weighted_avg", label: "Compliance" }//,
+  //{ value: "pop", label: "Population" }
 ]
 
 const SINGLE_DESTINATION_INDICATORS = [
@@ -503,12 +504,24 @@ function DrawToolbar({
   const handleToggleDraw = React.useCallback(() => {
     const draw = drawRef.current
     if (!draw) return
+
     if (draw.getMode() === "draw_polygon") {
+      // Turn off drawing mode
       draw.changeMode("simple_select")
     } else {
+      // Start a new polygon: clear all existing polygons (both Draw features and overlay state)
+      const all = draw.getAll()
+      const ids = (all.features as any[])
+        .map((f) => f.id)
+        .filter((id): id is string => typeof id === "string")
+      if (ids.length > 0) {
+        draw.delete(ids)
+      }
+      onClearPolygons?.()
+
       draw.changeMode("draw_polygon")
     }
-  }, [drawRef])
+  }, [drawRef, onClearPolygons])
 
   const handleDelete = React.useCallback(() => {
     const draw = drawRef.current
@@ -562,7 +575,7 @@ function HexMap({
   hexData,
   indicator,
   selectedBin,
-  selectedCell,
+  selectedCells,
   drawnPolygons,
   onCellClick,
   onPolygonsChange,
@@ -571,7 +584,7 @@ function HexMap({
   hexData: any[]
   indicator: string
   selectedBin: { min: number; max: number } | null
-  selectedCell: { h3_cell: string; compliance: number } | null
+  selectedCells: { h3_cell: string; [key: string]: unknown }[]
   drawnPolygons: GeoJSON.Feature[]
   onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
   onPolygonsChange?: (features: GeoJSON.Feature[]) => void
@@ -619,31 +632,19 @@ function HexMap({
       getElevation: getIndicatorValue,
       getFillColor: (d: any, info: any) => {
         const baseColor = getColorFunction(d, info)
-        const isSelectedCell = selectedCell && d.h3_cell === selectedCell.h3_cell
 
-        // Selected cell: fixed dark blue fill
-        if (isSelectedCell) {
-          return [30, 58, 138, 255] as [number, number, number, number]
-        }
 
-        // Selected bin: dim cells not in range
-        if (selectedBin) {
-          const compliance = d.compliance_weighted_avg || 0
-          const inRange =
-            compliance >= selectedBin.min &&
-            (compliance < selectedBin.max ||
-              (compliance === 1.0 && selectedBin.max === 1.0))
-          if (!inRange) {
+        // When there is a selection, dim cells that are not selected
+        if (selectedCells.length > 0) {
+          const isSelected = selectedCells.some((c) => c.h3_cell === d.h3_cell)
+          if (!isSelected) {
             return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
           }
         }
 
         return baseColor
       },
-      getLineColor: (d: any) => {
-        if (selectedCell && d.h3_cell === selectedCell.h3_cell) {
-          return [30, 58, 138, 255] as [number, number, number, number] // Dark blue border
-        }
+      getLineColor: () => {
         return [255, 255, 255, 255] as [number, number, number, number]
       },
       lineWidthMinPixels: 1,
@@ -653,8 +654,8 @@ function HexMap({
       opacity: 0.3,
       updateTriggers: {
         getElevation: indicator,
-        getFillColor: [indicator, selectedBin, selectedCell],
-        getLineColor: [selectedCell],
+        getFillColor: [indicator, selectedCells],
+        getLineColor: [selectedCells],
       },
     })
 
@@ -677,7 +678,7 @@ function HexMap({
         : null
 
     return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
-  }, [hexData, getIndicatorValue, indicator, selectedBin, selectedCell, getColorFunction, drawnPolygons])
+  }, [hexData, getIndicatorValue, indicator, selectedCells, getColorFunction, drawnPolygons])
 
   const handlePolygonUpdate = React.useCallback(
     (e: DrawEvent) => {
@@ -809,16 +810,11 @@ export default function app() {
   // map data
   const [hexData, setHexData] = React.useState<any[]>([]);
   const [selectedBin, setSelectedBin] = React.useState<{ min: number; max: number } | null>(null);
-  const [selectedCell, setSelectedCell] = React.useState<{ h3_cell: string; compliance: number } | null>(null);
+  const [selectedCells, setSelectedCells] = React.useState<any[]>([]);
 
   // polygon drawing (only keep the last polygon)
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDraw | null>(null)
-
-  // Clear single-cell selection when a polygon is drawn
-  React.useEffect(() => {
-    if (drawnPolygons.length > 0) setSelectedCell(null)
-  }, [drawnPolygons])
 
   // Compute which hex cells overlap with the drawn polygon
   const polygonSelectedCells = React.useMemo(() => {
@@ -838,6 +834,17 @@ export default function app() {
       }
     })
   }, [drawnPolygons, hexData])
+
+  // Keep selectedCells as the single source of truth:
+  // - when a polygon is drawn, selection becomes all cells it covers
+  // - when polygons are cleared, selection is cleared (click to select again)
+  React.useEffect(() => {
+    if (drawnPolygons.length > 0) {
+      setSelectedCells(polygonSelectedCells)
+    } else {
+      setSelectedCells([])
+    }
+  }, [drawnPolygons, polygonSelectedCells])
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
 
@@ -1027,14 +1034,19 @@ export default function app() {
         hexData={hexData} 
         indicator={selectedIndicator} 
         selectedBin={selectedBin} 
-        selectedCell={selectedCell}
+        selectedCells={selectedCells}
         drawnPolygons={drawnPolygons}
         onCellClick={drawnPolygons.length > 0 ? undefined : (obj) => {
           if (!obj) {
-            setSelectedCell(null)
+            setSelectedCells([])
           } else {
-            const cell = { h3_cell: obj.h3_cell, compliance: obj.compliance_weighted_avg || 0 }
-            setSelectedCell(prev => prev?.h3_cell === cell.h3_cell ? null : cell)
+            setSelectedCells((prev) => {
+              const exists = prev.some((c: any) => c.h3_cell === obj.h3_cell)
+              if (exists && prev.length === 1) {
+                return []
+              }
+              return [obj]
+            })
           }
         }}
         onPolygonsChange={setDrawnPolygons}
@@ -1205,8 +1217,7 @@ export default function app() {
         data={hexData} 
         selectedBin={selectedBin}
         onSelectBin={setSelectedBin}
-        selectedCellCompliance={drawnPolygons.length > 0 ? undefined : selectedCell?.compliance}
-        polygonSelectedCells={polygonSelectedCells}
+        selectedCells={selectedCells}
       />
     </div>
   )
