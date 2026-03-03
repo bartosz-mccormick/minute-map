@@ -60,17 +60,36 @@ const COMPLIANCE_FILL_COLORS: Color[] = [
   [253, 231, 37],
 ]
 
-//https://colorbrewer2.org/#type=sequential&scheme=Purples&n=7
+//https://waldyrious.net/viridis-palette-generator/
 const TRAVEL_TIME_FILL_BOUNDS = [0, 5, 10, 15, 20, 25, 30]
 const TRAVEL_TIME_FILL_COLORS: Color[] = [
-  [242, 240, 247],
-  [218, 218, 235],
-  [188, 189, 220],
-  [158, 154, 200],
-  [128, 125, 186],
-  [106, 81, 163],
-  [74, 20, 134],
+  [253, 231, 37],
+  [144, 215, 67],
+  [53, 183, 121],
+  [33, 145, 140],
+  [49, 104, 142],
+  [68, 57, 131],
+  [68, 1, 84],
 ]
+
+function getIndicatorValue(indicator: string, d: Record<string, unknown>): number | null {
+  const parts = indicator.split("::")
+  if (parts.length === 1) return (d[indicator] as number) ?? null
+  if (parts.length === 3) {
+    const [amenity, mode, metric] = parts
+    const amenities = d.amenities as Record<string, Record<string, Record<string, number>>> | undefined
+    return amenities?.[amenity]?.[mode]?.[metric] ?? null
+  }
+  return null
+}
+
+function getIndicatorFillConfig(indicator: string | undefined): { bounds: number[]; colors: Color[] } {
+  const isCompliance = indicator?.includes("compliance")
+  return {
+    bounds: isCompliance ? COMPLIANCE_FILL_BOUNDS : TRAVEL_TIME_FILL_BOUNDS,
+    colors: isCompliance ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS,
+  }
+}
 
 type ThresholdPreset = Omit<Threshold, "id">
 
@@ -574,6 +593,9 @@ function DrawToolbar({
 function HexMap({
   hexData,
   indicator,
+  getValue,
+  fillBounds,
+  fillColors,
   selectedCells,
   drawnPolygons,
   onCellClick,
@@ -582,44 +604,27 @@ function HexMap({
 }: {
   hexData: any[]
   indicator: string
+  getValue: (d: any) => number | null
+  fillBounds: number[]
+  fillColors: Color[]
   selectedCells: { h3_cell: string; [key: string]: unknown }[]
   drawnPolygons: GeoJSON.Feature[]
   onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
   onPolygonsChange?: (features: GeoJSON.Feature[]) => void
   drawRef?: React.MutableRefObject<MapboxDraw | null>
 }) {
-  // Determine if this is a compliance indicator or travel time indicator
-  const isComplianceIndicator = indicator.includes("compliance");
-  
-  // Helper function to get the value from data based on indicator
-  // This needs to be stable for deck.gl to detect changes
-  const getIndicatorValue = React.useCallback((d: any): number => {
-
-    // Handle nested indicators like "amenity::mode"
-    const parts = indicator.split("::")
-    if (parts.length === 1) {
-      return d[indicator] ?? 0
-
-    }
-    if (parts.length === 3) {
-      const [amenity, mode, metric] = parts
-      return d.amenities?.[amenity]?.[mode]?.[metric]
-    }
-    return 0
-  }, [indicator, isComplianceIndicator])
-  
   const getColorFunction = React.useMemo(
     () =>
       colorBins({
-        attr: getIndicatorValue,
-        domain: isComplianceIndicator
-          ? COMPLIANCE_FILL_BOUNDS.slice(1, -1)
-          : TRAVEL_TIME_FILL_BOUNDS.slice(1, -1),
-        colors: isComplianceIndicator ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS,
+        attr: (d: any) => getValue(d) ?? 0,
+        domain: fillBounds.slice(1, -1),
+        colors: fillColors,
       }),
-    [getIndicatorValue, isComplianceIndicator]
+    [getValue, fillBounds, fillColors]
   )
   
+  const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
+
   const layers = React.useMemo(() => {
     const hexLayer = new H3HexagonLayer({
       id: `H3HexagonLayer-${indicator}`,
@@ -627,11 +632,10 @@ function HexMap({
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: getIndicatorValue,
+      getElevation: (d: any) => getValue(d) ?? 0,
       getFillColor: (d: any, info: any) => {
+        if (getValue(d) === null) return NO_DATA_COLOR
         const baseColor = getColorFunction(d, info)
-
-
         // When there is a selection, dim cells that are not selected
         if (selectedCells.length > 0) {
           const isSelected = selectedCells.some((c) => c.h3_cell === d.h3_cell)
@@ -639,7 +643,6 @@ function HexMap({
             return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
           }
         }
-
         return baseColor
       },
       getLineColor: () => {
@@ -676,7 +679,7 @@ function HexMap({
         : null
 
     return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
-  }, [hexData, getIndicatorValue, indicator, selectedCells, getColorFunction, drawnPolygons])
+  }, [hexData, getValue, indicator, selectedCells, getColorFunction, drawnPolygons])
 
   const handlePolygonUpdate = React.useCallback(
     (e: DrawEvent) => {
@@ -760,12 +763,15 @@ function HexMap({
             }
           });
 
+          const val = getValue(object)
+          if (val === null) return "No data"
+          const isCompliance = indicator.includes("compliance")
           return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%
     ${
       indicator !== "compliance_weighted_avg"
-        ? isComplianceIndicator
-            ? `${Math.round(getIndicatorValue(object) * 100)}%`
-            : `${getIndicatorValue(object)} minutes`
+        ? isCompliance
+            ? `${Math.round(val * 100)}%`
+            : `${val} minutes`
         : ""
     }`
         }}
@@ -840,15 +846,23 @@ export default function app() {
     }
   }, [drawnPolygons, polygonSelectedCells])
 
+  const getValue = React.useCallback(
+    (d: Record<string, unknown>) => getIndicatorValue(selectedIndicator ?? "", d),
+    [selectedIndicator]
+  )
+
   const handleSelectBin = React.useCallback(
     (bin: { min: number; max: number } | null) => {
       if (bin === null) {
         setSelectedCells([])
         return
       }
+      const bounds = getIndicatorFillConfig(selectedIndicator).bounds
+      const isLastBin = bounds.length > 0 && bin.max === bounds[bounds.length - 1]
       const inBin = (c: any) => {
-        const v = c.compliance_weighted_avg ?? 0
-        return v >= bin.min && (v < bin.max || (v === 1 && bin.max === 1))
+        const v = getIndicatorValue(selectedIndicator ?? "", c)
+        if (v === null) return false
+        return v >= bin.min && (v < bin.max || (isLastBin && v === bin.max))
       }
       const cellsInBin = hexData.filter(inBin)
       const sameSelection =
@@ -870,7 +884,7 @@ export default function app() {
       setDrawnPolygons([])
       setSelectedCells(cellsInBin)
     },
-    [hexData, drawRef, selectedCells]
+    [hexData, drawRef, selectedCells, selectedIndicator]
   )
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
@@ -1057,9 +1071,12 @@ export default function app() {
   return (
     <div className="h-screen w-full relative bg-gray-50">
 
-      <HexMap 
-        hexData={hexData} 
-        indicator={selectedIndicator} 
+      <HexMap
+        hexData={hexData}
+        indicator={selectedIndicator}
+        getValue={getValue}
+        fillBounds={getIndicatorFillConfig(selectedIndicator).bounds}
+        fillColors={getIndicatorFillConfig(selectedIndicator).colors}
         selectedCells={selectedCells}
         drawnPolygons={drawnPolygons}
         onCellClick={drawnPolygons.length > 0 ? undefined : (obj) => {
@@ -1224,7 +1241,6 @@ export default function app() {
 
       <Card className="fixed bottom-4 left-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2">
         <CardContent className="p-3 space-y-3 text-sm">
-          {selectedIndicator}
 
           <NestedDropdownSelect
             options={availableIndicators}
@@ -1235,18 +1251,21 @@ export default function app() {
             pathSeparator=": "
            />
           <LegendBands
-            bounds={selectedIndicator?.includes('compliance')?COMPLIANCE_FILL_BOUNDS:TRAVEL_TIME_FILL_BOUNDS}
-            colors={selectedIndicator?.includes('compliance')?COMPLIANCE_FILL_COLORS:TRAVEL_TIME_FILL_COLORS}
+            bounds={getIndicatorFillConfig(selectedIndicator).bounds}
+            colors={getIndicatorFillConfig(selectedIndicator).colors}
           />
         </CardContent>
         {/* {selectedIndicator.split("::")[0]} */}
       </Card>
 
       {/* Compliance Statistics */}
-      <ComplianceStats 
-        data={hexData} 
+      <ComplianceStats
+        data={hexData}
+        bounds={getIndicatorFillConfig(selectedIndicator).bounds}
+        getValue={getValue}
         onSelectBin={handleSelectBin}
         selectedCells={selectedCells}
+        formatValue={fmt}
       />
     </div>
   )

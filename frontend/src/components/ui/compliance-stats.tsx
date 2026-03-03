@@ -11,53 +11,68 @@ type HexItem = {
 
 interface ComplianceStatsProps {
   data: HexItem[]
+  /** Bounds for bins (e.g. [0, 0.2, 0.4, 0.6, 0.8, 1] or [0, 5, 10, 15, 20, 25, 30]). Bins are [bounds[i], bounds[i+1]). */
+  bounds: number[]
+  /** Get the indicator value from a hex item (e.g. compliance or travel time). Null = missing, excluded from stats. */
+  getValue: (item: HexItem) => number | null
   onSelectBin: (bin: { min: number; max: number } | null) => void
   /** When 1+ cells are selected (click or polygon), show their distribution in the plot */
   selectedCells?: HexItem[]
+  /** Format axis labels (default: one decimal, no trailing .0) */
+  formatValue?: (v: number) => string
 }
 
-const BINS = [
-  { range: "0-0.2",   min: 0,   max: 0.2 },
-  { range: "0.2-0.4", min: 0.2, max: 0.4 },
-  { range: "0.4-0.6", min: 0.4, max: 0.6 },
-  { range: "0.6-0.8", min: 0.6, max: 0.8 },
-  { range: "0.8-1",   min: 0.8, max: 1.0 },
-]
+function buildBins(bounds: number[], formatValue: (v: number) => string): { range: string; min: number; max: number }[] {
+  return bounds.slice(0, -1).map((min, i) => {
+    const max = bounds[i + 1]
+    return { range: `${formatValue(min)}–${formatValue(max)}`, min, max }
+  })
+}
 
-function assignBin(compliance: number): number {
-  for (let i = 0; i < BINS.length; i++) {
-    const b = BINS[i]
-    if (compliance >= b.min && compliance < b.max) return i
-    if (compliance === 1.0 && b.max === 1.0) return i
+function assignBin(value: number, bins: { min: number; max: number }[]): number {
+  for (let i = 0; i < bins.length; i++) {
+    const b = bins[i]
+    const isLast = i === bins.length - 1
+    if (value >= b.min && (value < b.max || (isLast && value === b.max))) return i
   }
   return -1
 }
 
 const COLOR_DEFAULT = "#3b82f6"
 
+const defaultFormatValue = (v: number) => v.toFixed(1).replace(/\.0$/, "")
+
 export function ComplianceStats({
   data,
+  bounds,
+  getValue,
   onSelectBin,
   selectedCells,
+  formatValue = defaultFormatValue,
 }: ComplianceStatsProps) {
+  const bins = React.useMemo(() => buildBins(bounds, formatValue), [bounds, formatValue])
+
   const stats = React.useMemo(() => {
     const computeStats = (items: HexItem[]) => {
       let totalScore = 0
       let totalPopulation = 0
-      const binPop = BINS.map(() => 0)
+      const binPop = bins.map(() => 0)
+      const values: number[] = []
 
       items.forEach((item) => {
-        const compliance = item.compliance_weighted_avg || 0
+        const value = getValue(item)
+        if (value === null) return
         const pop = item.pop || 0
-        const idx = assignBin(compliance)
-        totalScore += pop * compliance
+        const idx = assignBin(value, bins)
+        totalScore += pop * value
         totalPopulation += pop
+        values.push(value)
         if (idx >= 0) binPop[idx] += pop
       })
 
       const weightedAvg = totalPopulation > 0 ? totalScore / totalPopulation : 0
-      const min = items.length > 0 ? Math.min(...items.map(d => d.compliance_weighted_avg || 0)) : 0
-      const max = items.length > 0 ? Math.max(...items.map(d => d.compliance_weighted_avg || 0)) : 0
+      const min = values.length > 0 ? Math.min(...values) : 0
+      const max = values.length > 0 ? Math.max(...values) : 0
 
       return { weightedAvg, binPop, min, max, totalPopulation }
     }
@@ -70,9 +85,9 @@ export function ComplianceStats({
       all,
       selection,
       binPop: all.binPop,
-      selectionBinPop: selection ? selection.binPop : BINS.map(() => 0),
+      selectionBinPop: selection ? selection.binPop : bins.map(() => 0),
     }
-  }, [data, selectedCells])
+  }, [data, selectedCells, bins, getValue])
 
   const hasSelection = !!stats.selection
 
@@ -81,7 +96,7 @@ export function ComplianceStats({
       grid: { left: 50, right: 20, top: 20, bottom: 60 },
       xAxis: {
         type: "category",
-        data: BINS.map(b => b.range),
+        data: bins.map((b) => b.range),
         axisLabel: { rotate: 0, fontSize: 11 },
       },
       yAxis: {
@@ -129,7 +144,7 @@ export function ComplianceStats({
         },
       },
     }
-  }, [stats, hasSelection])
+  }, [stats, hasSelection, bins])
 
   const onChartEvents = React.useMemo(
     () => ({
@@ -139,11 +154,11 @@ export function ComplianceStats({
           params.dataIndex === undefined ||
           params.seriesIndex !== 0
         ) return
-        const bin = BINS[params.dataIndex]
+        const bin = bins[params.dataIndex]
         onSelectBin({ min: bin.min, max: bin.max })
       },
     }),
-    [onSelectBin]
+    [onSelectBin, bins]
   )
 
   if (data.length === 0) return null
