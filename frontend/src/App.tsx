@@ -177,7 +177,7 @@ const INITIAL_THRESHOLDS: Threshold[] = []
 
 const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
 [
-  { value: "compliance_weighted_avg", label: "Multi-Amenity Compliance" }//,
+  { value: "compliance_weighted_avg", label: "X-Min City Compliance" }//,
   //{ value: "pop", label: "Population" }
 ]
 
@@ -1048,7 +1048,7 @@ export default function app() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Preset</div>
+                    <div className="text-sm font-medium">Preference Set</div>
                     <NestedDropdownSelect
                       options={PRESET_NESTED_OPTIONS}
                       value={selectedPreset}
@@ -1062,7 +1062,7 @@ export default function app() {
                           applyPreset(value)
                         }
                       }}
-                      placeholder="Choose a preset"
+                      placeholder="Choose a preference set"
                       showPathInLabel={true}
                       pathSeparator=" › "
                     />
