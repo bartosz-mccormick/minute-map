@@ -574,7 +574,6 @@ function DrawToolbar({
 function HexMap({
   hexData,
   indicator,
-  selectedBin,
   selectedCells,
   drawnPolygons,
   onCellClick,
@@ -583,7 +582,6 @@ function HexMap({
 }: {
   hexData: any[]
   indicator: string
-  selectedBin: { min: number; max: number } | null
   selectedCells: { h3_cell: string; [key: string]: unknown }[]
   drawnPolygons: GeoJSON.Feature[]
   onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
@@ -809,7 +807,6 @@ export default function app() {
 
   // map data
   const [hexData, setHexData] = React.useState<any[]>([]);
-  const [selectedBin, setSelectedBin] = React.useState<{ min: number; max: number } | null>(null);
   const [selectedCells, setSelectedCells] = React.useState<any[]>([]);
 
   // polygon drawing (only keep the last polygon)
@@ -835,16 +832,46 @@ export default function app() {
     })
   }, [drawnPolygons, hexData])
 
-  // Keep selectedCells as the single source of truth:
-  // - when a polygon is drawn, selection becomes all cells it covers
-  // - when polygons are cleared, selection is cleared (click to select again)
+  // When a polygon is drawn/updated, selection becomes the cells it covers.
+  // When polygons are cleared (trash or selecting a bin), selection is updated elsewhere.
   React.useEffect(() => {
     if (drawnPolygons.length > 0) {
       setSelectedCells(polygonSelectedCells)
-    } else {
-      setSelectedCells([])
     }
   }, [drawnPolygons, polygonSelectedCells])
+
+  const handleSelectBin = React.useCallback(
+    (bin: { min: number; max: number } | null) => {
+      if (bin === null) {
+        setSelectedCells([])
+        return
+      }
+      const inBin = (c: any) => {
+        const v = c.compliance_weighted_avg ?? 0
+        return v >= bin.min && (v < bin.max || (v === 1 && bin.max === 1))
+      }
+      const cellsInBin = hexData.filter(inBin)
+      const sameSelection =
+        selectedCells.length === cellsInBin.length &&
+        cellsInBin.every((c) => selectedCells.some((s) => s.h3_cell === c.h3_cell))
+      if (sameSelection) {
+        setSelectedCells([])
+        return
+      }
+      // Discard existing selection and drawn polygon; select all cells in this bin
+      const draw = drawRef.current
+      if (draw) {
+        const all = draw.getAll()
+        const ids = (all.features as any[])
+          .map((f) => f.id)
+          .filter((id): id is string => typeof id === "string")
+        if (ids.length > 0) draw.delete(ids)
+      }
+      setDrawnPolygons([])
+      setSelectedCells(cellsInBin)
+    },
+    [hexData, drawRef, selectedCells]
+  )
 
   const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
 
@@ -1033,7 +1060,6 @@ export default function app() {
       <HexMap 
         hexData={hexData} 
         indicator={selectedIndicator} 
-        selectedBin={selectedBin} 
         selectedCells={selectedCells}
         drawnPolygons={drawnPolygons}
         onCellClick={drawnPolygons.length > 0 ? undefined : (obj) => {
@@ -1049,7 +1075,10 @@ export default function app() {
             })
           }
         }}
-        onPolygonsChange={setDrawnPolygons}
+        onPolygonsChange={(features) => {
+          setDrawnPolygons(features)
+          if (features.length === 0) setSelectedCells([])
+        }}
         drawRef={drawRef}
       />
 
@@ -1215,8 +1244,7 @@ export default function app() {
       {/* Compliance Statistics */}
       <ComplianceStats 
         data={hexData} 
-        selectedBin={selectedBin}
-        onSelectBin={setSelectedBin}
+        onSelectBin={handleSelectBin}
         selectedCells={selectedCells}
       />
     </div>
