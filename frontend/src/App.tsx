@@ -99,122 +99,33 @@ interface PresetDefinition {
   thresholds: Record<string, ThresholdPreset>
 }
 
-// All presets defined here; add more entries as needed.
-const PRESETS: Record<string, PresetDefinition> = {
-  walk_placeholder: {
-    label: "European Cities",
-    weights: {
-      grocery: 0.88,
-      pharmacy: 0.63,
-      atm_bank: 0.1,
-      post: 0.4,
-      gp: 0.56,
-      restaurant: 0.74,
-      cafe: 0.74,
-      bar: 0.39,
-      bakery: 0.54,
-      school: 0.13,
-      kindergarten: 0.13,
-      library: 0.3,
-      sport: 0.56,
-      park: 0.82,
-      playground: 0.12,
-    },
-    thresholds: {
-      grocery: {
-        selectedDestinations: ["grocery"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 10,
-      },
-      pharmacy: {
-        selectedDestinations: ["pharmacy"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 10,
-      },
-      atm_bank: {
-        selectedDestinations: ["atm_bank"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      post: {
-        selectedDestinations: ["post"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 10,
-      },
-      gp: {
-        selectedDestinations: ["gp"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      restaurant: {
-        selectedDestinations: ["restaurant"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      cafe: {
-        selectedDestinations: ["cafe"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      bar: {
-        selectedDestinations: ["bar"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      bakery: {
-        selectedDestinations: ["bakery"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 10,
-      },
-      school: {
-        selectedDestinations: ["school"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      kindergarten: {
-        selectedDestinations: ["kindergarten"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      library: {
-        selectedDestinations: ["library"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      sport: {
-        selectedDestinations: ["sport"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      park: {
-        selectedDestinations: ["park"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 15,
-      },
-      playground: {
-        selectedDestinations: ["playground"],
-        quantity: 1,
-        transportMode: "walk",
-        travelTime: 10,
-      },
-    },
-  },
+/** Presets config: cities as keys, each city has presetId -> preset. */
+type PresetsConfigByCity = Record<string, Record<string, PresetDefinition>>
 
+import presetsConfig from "@/config/presets.json"
+
+const presetsByCity = presetsConfig as unknown as PresetsConfigByCity
+
+/** Flat map of presetId -> preset for applyPreset. */
+const PRESETS: Record<string, PresetDefinition> = {}
+for (const presets of Object.values(presetsByCity)) {
+  for (const [presetId, preset] of Object.entries(presets)) {
+    PRESETS[presetId] = preset
+  }
 }
+
+/** Nested options for preset dropdown: Custom + cities with preset children. */
+const PRESET_NESTED_OPTIONS: NestedOption[] = [
+  { value: "custom", label: "Custom" },
+  ...Object.entries(presetsByCity).map(([cityId, presets]) => ({
+    value: cityId,
+    label: cityId,
+    children: Object.entries(presets).map(([presetId, preset]) => ({
+      value: presetId,
+      label: preset.label,
+    })),
+  })),
+]
 
 
 
@@ -266,12 +177,12 @@ const INITIAL_THRESHOLDS: Threshold[] = []
 
 const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
 [
-  { value: "compliance_weighted_avg", label: "Compliance" }//,
+  { value: "compliance_weighted_avg", label: "Multi-Amenity Compliance" }//,
   //{ value: "pop", label: "Population" }
 ]
 
 const SINGLE_DESTINATION_INDICATORS = [
-  { value: "compliance", label: "Threshold Pass/Fail" },
+  { value: "compliance", label: "Compliance" },
   { value: "min_travel_time", label: "Time to Nearest" },
   { value: "min_travel_time_X", label: "Time to Nearest X" },
 
@@ -1138,7 +1049,8 @@ export default function app() {
 
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Preset</div>
-                    <Select
+                    <NestedDropdownSelect
+                      options={PRESET_NESTED_OPTIONS}
                       value={selectedPreset}
                       onValueChange={(value) => {
                         if (value === "custom") {
@@ -1150,19 +1062,10 @@ export default function app() {
                           applyPreset(value)
                         }
                       }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a preset" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="custom">Custom</SelectItem>
-                        {Object.entries(PRESETS).map(([id, preset]) => (
-                          <SelectItem key={id} value={id}>
-                            {preset.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Choose a preset"
+                      showPathInLabel={true}
+                      pathSeparator=" › "
+                    />
                     <div className="text-xs text-muted-foreground">
                       Selecting a preset will overwrite weights and thresholds.
                     </div>

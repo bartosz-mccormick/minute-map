@@ -1,0 +1,1816 @@
+{
+    "Brussels": {
+      "brussels_caregivers": {
+        "label": "Caregivers",
+        "weights": {
+          "atm_bank": 0.18,
+          "bakery": 0.53,
+          "bar": 0.14,
+          "cafe": 0.13,
+          "gp": 0.34,
+          "grocery": 0.55,
+          "kindergarten": 0.08,
+          "library": 0.1,
+          "park": 0.41,
+          "pharmacy": 0.48,
+          "playground": 0.11,
+          "post": 0.17,
+          "restaurant": 0.29,
+          "school": 0.15,
+          "sport": 0.11
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 5
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      },
+      "brussels_general": {
+        "label": "General",
+        "weights": {
+          "atm_bank": 0.26,
+          "bakery": 0.51,
+          "bar": 0.11,
+          "cafe": 0.15,
+          "gp": 0.38,
+          "grocery": 0.57,
+          "kindergarten": 0.04,
+          "library": 0.09,
+          "park": 0.37,
+          "pharmacy": 0.5,
+          "playground": 0.05,
+          "post": 0.19,
+          "restaurant": 0.32,
+          "school": 0.08,
+          "sport": 0.09
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      }
+    },
+    "Budapest": {
+      "budapest_age25to45": {
+        "label": "Age25to45",
+        "weights": {
+          "atm_bank": 0.08,
+          "bakery": 0.14,
+          "bar": 0.05,
+          "cafe": 0.07,
+          "gp": 0.16,
+          "grocery": 0.61,
+          "kindergarten": 0.23,
+          "library": 0.06,
+          "park": 0.28,
+          "pharmacy": 0.12,
+          "playground": 0.17,
+          "post": 0.13,
+          "restaurant": 0.14,
+          "school": 0.26,
+          "sport": 0.26
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      },
+      "budapest_general": {
+        "label": "General",
+        "weights": {
+          "atm_bank": 0.1,
+          "bakery": 0.22,
+          "bar": 0.41,
+          "cafe": 0.07,
+          "gp": 0.24,
+          "grocery": 0.66,
+          "kindergarten": 0.1,
+          "library": 0.04,
+          "park": 0.21,
+          "pharmacy": 0.22,
+          "playground": 0.09,
+          "post": 0.15,
+          "restaurant": 0.1,
+          "school": 0.19,
+          "sport": 0.18
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      }
+    },
+    "Munich": {
+      "munich_general": {
+        "label": "General",
+        "weights": {
+          "atm_bank": 0.17,
+          "bakery": 0.48,
+          "bar": 0.06,
+          "cafe": 0.2,
+          "gp": 0.43,
+          "grocery": 0.71,
+          "kindergarten": 0.11,
+          "library": 0.04,
+          "park": 0.24,
+          "pharmacy": 0.42,
+          "playground": 0.13,
+          "post": 0.19,
+          "restaurant": 0.31,
+          "school": 0.12,
+          "sport": 0.14
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      },
+      "munich_migrants": {
+        "label": "Migrants",
+        "weights": {
+          "atm_bank": 0.17,
+          "bakery": 0.67,
+          "cafe": 0.21,
+          "gp": 0.29,
+          "grocery": 0.63,
+          "kindergarten": 0.11,
+          "library": 0.04,
+          "park": 0.21,
+          "pharmacy": 0.38,
+          "playground": 0.08,
+          "post": 0.25,
+          "restaurant": 0.25,
+          "school": 0.21,
+          "sport": 0.21
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 45
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      },
+      "munich_older60plus": {
+        "label": "Older60plus",
+        "weights": {
+          "atm_bank": 0.28,
+          "bakery": 0.53,
+          "bar": 0.06,
+          "cafe": 0.17,
+          "gp": 0.49,
+          "grocery": 0.77,
+          "kindergarten": 0.11,
+          "park": 0.15,
+          "pharmacy": 0.55,
+          "playground": 0.02,
+          "post": 0.15,
+          "restaurant": 0.34,
+          "school": 0.21,
+          "sport": 0.14
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 5
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      }
+    },
+    "Paris": {
+      "paris_general": {
+        "label": "General",
+        "weights": {
+          "atm_bank": 0.07,
+          "bakery": 0.51,
+          "bar": 0.05,
+          "cafe": 0.06,
+          "gp": 0.5,
+          "grocery": 0.81,
+          "kindergarten": 0.03,
+          "library": 0.22,
+          "park": 0.38,
+          "pharmacy": 0.6,
+          "playground": 0.03,
+          "post": 0.06,
+          "restaurant": 0.27,
+          "school": 0.27,
+          "sport": 0.22
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 30
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 30
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          }
+        }
+      },
+      "paris_young25minus": {
+        "label": "Young25minus",
+        "weights": {
+          "atm_bank": 0.07,
+          "bakery": 0.34,
+          "bar": 0.16,
+          "cafe": 0.06,
+          "gp": 0.34,
+          "grocery": 0.81,
+          "library": 0.28,
+          "park": 0.25,
+          "pharmacy": 0.5,
+          "restaurant": 0.34,
+          "school": 0.5,
+          "sport": 0.28
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 30
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 45
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 45
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          }
+        }
+      }
+    },
+    "Utrecht": {
+      "utrecht_general": {
+        "label": "General",
+        "weights": {
+          "atm_bank": 0.1,
+          "bakery": 0.14,
+          "bar": 0.04,
+          "cafe": 0.07,
+          "gp": 0.66,
+          "grocery": 0.87,
+          "kindergarten": 0.08,
+          "library": 0.06,
+          "park": 0.24,
+          "pharmacy": 0.42,
+          "playground": 0.06,
+          "post": 0.19,
+          "restaurant": 0.23,
+          "school": 0.19,
+          "sport": 0.13
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      },
+      "utrecht_lowincome": {
+        "label": "Lowincome",
+        "weights": {
+          "atm_bank": 0.13,
+          "bakery": 0.08,
+          "bar": 0.04,
+          "cafe": 0.06,
+          "gp": 0.7,
+          "grocery": 0.86,
+          "kindergarten": 0.08,
+          "library": 0.07,
+          "park": 0.24,
+          "pharmacy": 0.56,
+          "playground": 0.06,
+          "post": 0.28,
+          "restaurant": 0.22,
+          "school": 0.1,
+          "sport": 0.1
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      }
+    },
+    "Vienna": {
+      "vienna_general": {
+        "label": "General",
+        "weights": {
+          "atm_bank": 0.19,
+          "bakery": 0.31,
+          "bar": 0.08,
+          "cafe": 0.21,
+          "gp": 0.4,
+          "grocery": 0.8,
+          "kindergarten": 0.08,
+          "library": 0.03,
+          "park": 0.23,
+          "pharmacy": 0.55,
+          "playground": 0.08,
+          "post": 0.24,
+          "restaurant": 0.3,
+          "school": 0.11,
+          "sport": 0.12
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          }
+        }
+      },
+      "vienna_shoppers": {
+        "label": "Shoppers",
+        "weights": {
+          "atm_bank": 0.14,
+          "bakery": 0.27,
+          "bar": 0.13,
+          "cafe": 0.23,
+          "gp": 0.31,
+          "grocery": 0.78,
+          "kindergarten": 0.16,
+          "library": 0.05,
+          "park": 0.27,
+          "pharmacy": 0.46,
+          "playground": 0.13,
+          "post": 0.18,
+          "restaurant": 0.29,
+          "school": 0.16,
+          "sport": 0.16
+        },
+        "thresholds": {
+          "atm_bank": {
+            "selectedDestinations": [
+              "atm_bank"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "bakery": {
+            "selectedDestinations": [
+              "bakery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "bar": {
+            "selectedDestinations": [
+              "bar"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "cafe": {
+            "selectedDestinations": [
+              "cafe"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "gp": {
+            "selectedDestinations": [
+              "gp"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "grocery": {
+            "selectedDestinations": [
+              "grocery"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "kindergarten": {
+            "selectedDestinations": [
+              "kindergarten"
+            ],
+            "quantity": 1,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "library": {
+            "selectedDestinations": [
+              "library"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "park": {
+            "selectedDestinations": [
+              "park"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "pharmacy": {
+            "selectedDestinations": [
+              "pharmacy"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "playground": {
+            "selectedDestinations": [
+              "playground"
+            ],
+            "quantity": 4,
+            "transportMode": "walk",
+            "travelTime": 10
+          },
+          "post": {
+            "selectedDestinations": [
+              "post"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "restaurant": {
+            "selectedDestinations": [
+              "restaurant"
+            ],
+            "quantity": 3,
+            "transportMode": "walk",
+            "travelTime": 20
+          },
+          "school": {
+            "selectedDestinations": [
+              "school"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          },
+          "sport": {
+            "selectedDestinations": [
+              "sport"
+            ],
+            "quantity": 2,
+            "transportMode": "walk",
+            "travelTime": 15
+          }
+        }
+      }
+    }
+  }
+  
