@@ -4,6 +4,7 @@ import * as React from "react"
 import { Settings, Loader2, Pencil, Trash2 } from "lucide-react"
 import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibre"
 import { H3HexagonLayer } from "deck.gl"
+import { PolygonLayer } from "@deck.gl/layers"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import "maplibre-gl/dist/maplibre-gl.css"
 import {colorBins} from "@deck.gl/carto"
@@ -337,69 +338,80 @@ type MapWithEvents = {
   off: (event: string, fn: (...args: unknown[]) => void) => void
 }
 
-// MapLibre GL v5 no longer supports expressions for line-dasharray.
-// We replace the default gl-draw-lines layer (which uses a `case` expression for dasharray)
-// with two explicit layers: one for active state (dashed) and one for inactive (solid).
 const DRAW_STYLES = [
+  // ACTIVE (being drawn)
+  // line stroke
+  {
+    id: "gl-draw-line",
+    type: "line",
+    filter: ["all", ["==", "$type", "LineString"]],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
+    paint: {
+      "line-color": "#D20C0C",
+      "line-width": 2,
+    },
+  },
+  // polygon fill
   {
     id: "gl-draw-polygon-fill",
     type: "fill",
     filter: ["all", ["==", "$type", "Polygon"]],
     paint: {
-      "fill-color": ["case", ["==", ["get", "active"], "true"], "#fbb03b", "#3bb2d0"],
-      "fill-opacity": 0.1,
+      "fill-color": "#D20C0C",
+      "fill-outline-color": "#D20C0C",
+      "fill-opacity": 0,
     },
   },
-  // Inactive lines — solid
+  // polygon mid points
   {
-    id: "gl-draw-lines-inactive",
+    id: "gl-draw-polygon-midpoint",
+    type: "circle",
+    filter: [
+      "all",
+      ["==", "$type", "Point"],
+      ["==", "meta", "midpoint"],
+    ],
+    paint: {
+      "circle-radius": 3,
+      "circle-color": "#fbb03b",
+    },
+  },
+  // polygon outline stroke
+  // This doesn't style the first edge of the polygon, which uses the line stroke styling instead
+  {
+    id: "gl-draw-polygon-stroke-active",
     type: "line",
-    filter: ["all", ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]], ["==", ["get", "active"], "false"]],
-    layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#3bb2d0", "line-width": 2 },
-  },
-  // Active lines — dashed (literal array, not an expression)
-  {
-    id: "gl-draw-lines-active",
-    type: "line",
-    filter: ["all", ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]], ["==", ["get", "active"], "true"]],
-    layout: { "line-cap": "round", "line-join": "round" },
-    paint: { "line-color": "#fbb03b", "line-dasharray": [0.2, 2], "line-width": 2 },
-  },
-  {
-    id: "gl-draw-point-outer",
-    type: "circle",
-    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "feature"]],
+    filter: ["all", ["==", "$type", "Polygon"]],
+    layout: {
+      "line-cap": "round",
+      "line-join": "round",
+    },
     paint: {
-      "circle-radius": ["case", ["==", ["get", "active"], "true"], 7, 5],
-      "circle-color": "#fff",
+      "line-color": "#D20C0C",
+      "line-width": 2,
     },
   },
+  // vertex point halos
   {
-    id: "gl-draw-point-inner",
+    id: "gl-draw-polygon-and-line-vertex-halo-active",
     type: "circle",
-    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "feature"]],
+    filter: ["all", ["==", "meta", "vertex"], ["==", "$type", "Point"]],
     paint: {
-      "circle-radius": ["case", ["==", ["get", "active"], "true"], 5, 3],
-      "circle-color": ["case", ["==", ["get", "active"], "true"], "#fbb03b", "#3bb2d0"],
+      "circle-radius": 5,
+      "circle-color": "#FFF",
     },
   },
+  // vertex points
   {
-    id: "gl-draw-vertex-outer",
+    id: "gl-draw-polygon-and-line-vertex-active",
     type: "circle",
-    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "vertex"], ["!=", "mode", "simple_select"]],
+    filter: ["all", ["==", "meta", "vertex"], ["==", "$type", "Point"]],
     paint: {
-      "circle-radius": ["case", ["==", ["get", "active"], "true"], 7, 5],
-      "circle-color": "#fff",
-    },
-  },
-  {
-    id: "gl-draw-vertex-inner",
-    type: "circle",
-    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "vertex"], ["!=", "mode", "simple_select"]],
-    paint: {
-      "circle-radius": ["case", ["==", ["get", "active"], "true"], 5, 3],
-      "circle-color": ["case", ["==", ["get", "active"], "true"], "#fbb03b", "#3bb2d0"],
+      "circle-radius": 3,
+      "circle-color": "#D20C0C",
     },
   },
 ] as unknown as MapboxDraw.MapboxDrawOptions["styles"]
@@ -467,7 +479,13 @@ function DrawControl({
 // position: fixed escapes the map's overflow:hidden, so buttons appear correctly.
 // MapLibre's NavigationControl (3 × 29px buttons + 10px top margin) ends at ~97px,
 // so we start the toolbar at 107px (97 + 10px gap margin).
-function DrawToolbar({ drawRef }: { drawRef: React.MutableRefObject<MapboxDraw | null> }) {
+function DrawToolbar({
+  drawRef,
+  onClearPolygons,
+}: {
+  drawRef: React.MutableRefObject<MapboxDraw | null>
+  onClearPolygons?: () => void
+}) {
   const [isDrawing, setIsDrawing] = React.useState(false)
   const { current: map } = useMap()
 
@@ -493,8 +511,17 @@ function DrawToolbar({ drawRef }: { drawRef: React.MutableRefObject<MapboxDraw |
   }, [drawRef])
 
   const handleDelete = React.useCallback(() => {
-    drawRef.current?.trash()
-  }, [drawRef])
+    const draw = drawRef.current
+    if (!draw) return
+    const all = draw.getAll()
+    const ids = (all.features as any[])
+      .map((f) => f.id)
+      .filter((id): id is string => typeof id === "string")
+    if (ids.length > 0) {
+      draw.delete(ids)
+    }
+    onClearPolygons?.()
+  }, [drawRef, onClearPolygons])
 
   const btnStyle: React.CSSProperties = {
     display: "flex",
@@ -536,6 +563,7 @@ function HexMap({
   indicator,
   selectedBin,
   selectedCell,
+  drawnPolygons,
   onCellClick,
   onPolygonsChange,
   drawRef,
@@ -544,6 +572,7 @@ function HexMap({
   indicator: string
   selectedBin: { min: number; max: number } | null
   selectedCell: { h3_cell: string; compliance: number } | null
+  drawnPolygons: GeoJSON.Feature[]
   onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
   onPolygonsChange?: (features: GeoJSON.Feature[]) => void
   drawRef?: React.MutableRefObject<MapboxDraw | null>
@@ -580,58 +609,75 @@ function HexMap({
     [getIndicatorValue, isComplianceIndicator]
   )
   
-  const layers = React.useMemo(
-    () => [
-      new H3HexagonLayer({
-        id: `H3HexagonLayer-${indicator}`,
-        data: hexData,
-        elevationScale: 1000,
-        extruded: false,
-        filled: true,
-        getElevation: getIndicatorValue,
-        getFillColor: (d: any, info: any) => {
-          const baseColor = getColorFunction(d, info)
-          const isSelectedCell = selectedCell && d.h3_cell === selectedCell.h3_cell
+  const layers = React.useMemo(() => {
+    const hexLayer = new H3HexagonLayer({
+      id: `H3HexagonLayer-${indicator}`,
+      data: hexData,
+      elevationScale: 1000,
+      extruded: false,
+      filled: true,
+      getElevation: getIndicatorValue,
+      getFillColor: (d: any, info: any) => {
+        const baseColor = getColorFunction(d, info)
+        const isSelectedCell = selectedCell && d.h3_cell === selectedCell.h3_cell
 
-          // Selected cell: fixed dark blue fill
-          if (isSelectedCell) {
-            return [30, 58, 138, 255] as [number, number, number, number]
-          }
+        // Selected cell: fixed dark blue fill
+        if (isSelectedCell) {
+          return [30, 58, 138, 255] as [number, number, number, number]
+        }
 
-          // Selected bin: dim cells not in range
-          if (selectedBin) {
-            const compliance = d.compliance_weighted_avg || 0
-            const inRange =
-              compliance >= selectedBin.min &&
-              (compliance < selectedBin.max ||
-                (compliance === 1.0 && selectedBin.max === 1.0))
-            if (!inRange) {
-              return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
-            }
+        // Selected bin: dim cells not in range
+        if (selectedBin) {
+          const compliance = d.compliance_weighted_avg || 0
+          const inRange =
+            compliance >= selectedBin.min &&
+            (compliance < selectedBin.max ||
+              (compliance === 1.0 && selectedBin.max === 1.0))
+          if (!inRange) {
+            return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
           }
+        }
 
-          return baseColor
-        },
-        getLineColor: (d: any) => {
-          if (selectedCell && d.h3_cell === selectedCell.h3_cell) {
-            return [30, 58, 138, 255] as [number, number, number, number] // Dark blue border
-          }
-          return [255, 255, 255, 255] as [number, number, number, number]
-        },
-        lineWidthMinPixels: 1,
-        getHexagon: (d: any) => d.h3_cell,
-        wireframe: false,
-        pickable: true,
-        opacity: 0.3,
-        updateTriggers: {
-          getElevation: indicator,
-          getFillColor: [indicator, selectedBin, selectedCell],
-          getLineColor: [selectedCell],
-        },
-      }),
-    ],
-    [hexData, getIndicatorValue, indicator, selectedBin, selectedCell, getColorFunction]
-  )
+        return baseColor
+      },
+      getLineColor: (d: any) => {
+        if (selectedCell && d.h3_cell === selectedCell.h3_cell) {
+          return [30, 58, 138, 255] as [number, number, number, number] // Dark blue border
+        }
+        return [255, 255, 255, 255] as [number, number, number, number]
+      },
+      lineWidthMinPixels: 1,
+      getHexagon: (d: any) => d.h3_cell,
+      wireframe: false,
+      pickable: true,
+      opacity: 0.3,
+      updateTriggers: {
+        getElevation: indicator,
+        getFillColor: [indicator, selectedBin, selectedCell],
+        getLineColor: [selectedCell],
+      },
+    })
+
+    const polygonFeatures = (drawnPolygons ?? []).filter(
+      (f: GeoJSON.Feature) => f.geometry?.type === "Polygon"
+    )
+
+    const polygonLayer =
+      polygonFeatures.length > 0
+        ? new PolygonLayer({
+            id: "DrawnPolygonLayer",
+            data: polygonFeatures,
+            getPolygon: (f: any) => f.geometry?.coordinates ?? [],
+            getFillColor: [210, 12, 12, 0],
+            getLineColor: [210, 12, 12, 255],
+            getLineWidth: 2,
+            lineWidthUnits: "pixels",
+            pickable: false,
+          })
+        : null
+
+    return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
+  }, [hexData, getIndicatorValue, indicator, selectedBin, selectedCell, getColorFunction, drawnPolygons])
 
   const handlePolygonUpdate = React.useCallback(
     (e: DrawEvent) => {
@@ -731,7 +777,10 @@ function HexMap({
         onUpdate={handlePolygonUpdate}
         onDelete={handlePolygonDelete}
       />
-      <DrawToolbar drawRef={drawRef as React.MutableRefObject<MapboxDraw | null>} />
+      <DrawToolbar
+        drawRef={drawRef as React.MutableRefObject<MapboxDraw | null>}
+        onClearPolygons={() => onPolygonsChange?.([])}
+      />
     </Map>
   )
 }
@@ -979,6 +1028,7 @@ export default function app() {
         indicator={selectedIndicator} 
         selectedBin={selectedBin} 
         selectedCell={selectedCell}
+        drawnPolygons={drawnPolygons}
         onCellClick={drawnPolygons.length > 0 ? undefined : (obj) => {
           if (!obj) {
             setSelectedCell(null)
