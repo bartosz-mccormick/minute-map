@@ -554,14 +554,14 @@ function DrawToolbar({
       style={{ position: "fixed", top: 107, left: 10, zIndex: 10 }}
     >
       <button
-        title={isDrawing ? "取消绘制" : "绘制多边形"}
+        title={isDrawing ? "Cancel" : "Make selection"}
         onClick={handleToggleDraw}
         style={{ ...btnStyle, backgroundColor: isDrawing ? "#dbeafe" : undefined }}
       >
         <Pencil size={15} color={isDrawing ? "#2563eb" : "#333"} />
       </button>
       <button
-        title="删除选中的多边形"
+        title="Clear selection"
         onClick={handleDelete}
         style={btnStyle}
       >
@@ -1224,6 +1224,7 @@ export default function app() {
 
       <Card className="fixed bottom-4 left-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2">
         <CardContent className="p-3 space-y-3 text-sm">
+          {selectedIndicator}
 
           <NestedDropdownSelect
             options={availableIndicators}
@@ -1234,8 +1235,8 @@ export default function app() {
             pathSeparator=": "
            />
           <LegendBands
-            bounds={selectedIndicator === 'compliance_weighted_avg'?COMPLIANCE_FILL_BOUNDS:TRAVEL_TIME_FILL_BOUNDS}
-            colors={selectedIndicator === 'compliance_weighted_avg'?COMPLIANCE_FILL_COLORS:TRAVEL_TIME_FILL_COLORS}
+            bounds={selectedIndicator?.includes('compliance')?COMPLIANCE_FILL_BOUNDS:TRAVEL_TIME_FILL_BOUNDS}
+            colors={selectedIndicator?.includes('compliance')?COMPLIANCE_FILL_COLORS:TRAVEL_TIME_FILL_COLORS}
           />
         </CardContent>
         {/* {selectedIndicator.split("::")[0]} */}
