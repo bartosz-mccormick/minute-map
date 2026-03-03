@@ -337,6 +337,73 @@ type MapWithEvents = {
   off: (event: string, fn: (...args: unknown[]) => void) => void
 }
 
+// MapLibre GL v5 no longer supports expressions for line-dasharray.
+// We replace the default gl-draw-lines layer (which uses a `case` expression for dasharray)
+// with two explicit layers: one for active state (dashed) and one for inactive (solid).
+const DRAW_STYLES = [
+  {
+    id: "gl-draw-polygon-fill",
+    type: "fill",
+    filter: ["all", ["==", "$type", "Polygon"]],
+    paint: {
+      "fill-color": ["case", ["==", ["get", "active"], "true"], "#fbb03b", "#3bb2d0"],
+      "fill-opacity": 0.1,
+    },
+  },
+  // Inactive lines — solid
+  {
+    id: "gl-draw-lines-inactive",
+    type: "line",
+    filter: ["all", ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]], ["==", ["get", "active"], "false"]],
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#3bb2d0", "line-width": 2 },
+  },
+  // Active lines — dashed (literal array, not an expression)
+  {
+    id: "gl-draw-lines-active",
+    type: "line",
+    filter: ["all", ["any", ["==", "$type", "LineString"], ["==", "$type", "Polygon"]], ["==", ["get", "active"], "true"]],
+    layout: { "line-cap": "round", "line-join": "round" },
+    paint: { "line-color": "#fbb03b", "line-dasharray": [0.2, 2], "line-width": 2 },
+  },
+  {
+    id: "gl-draw-point-outer",
+    type: "circle",
+    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "feature"]],
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "active"], "true"], 7, 5],
+      "circle-color": "#fff",
+    },
+  },
+  {
+    id: "gl-draw-point-inner",
+    type: "circle",
+    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "feature"]],
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "active"], "true"], 5, 3],
+      "circle-color": ["case", ["==", ["get", "active"], "true"], "#fbb03b", "#3bb2d0"],
+    },
+  },
+  {
+    id: "gl-draw-vertex-outer",
+    type: "circle",
+    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "vertex"], ["!=", "mode", "simple_select"]],
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "active"], "true"], 7, 5],
+      "circle-color": "#fff",
+    },
+  },
+  {
+    id: "gl-draw-vertex-inner",
+    type: "circle",
+    filter: ["all", ["==", "$type", "Point"], ["==", "meta", "vertex"], ["!=", "mode", "simple_select"]],
+    paint: {
+      "circle-radius": ["case", ["==", ["get", "active"], "true"], 5, 3],
+      "circle-color": ["case", ["==", ["get", "active"], "true"], "#fbb03b", "#3bb2d0"],
+    },
+  },
+] as unknown as MapboxDraw.MapboxDrawOptions["styles"]
+
 function DrawControl({
   drawRef,
   onUpdate,
@@ -369,6 +436,7 @@ function DrawControl({
     () => new MapboxDraw({
       displayControlsDefault: false,
       defaultMode: "simple_select",
+      styles: DRAW_STYLES,
       modes: {
         ...MapboxDraw.modes,
         draw_polygon: FreehandMode,
