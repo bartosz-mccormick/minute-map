@@ -3,7 +3,6 @@
 import * as React from "react"
 import { Settings, Loader2, Pencil, Trash2 } from "lucide-react"
 import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibre"
-import { createPortal } from "react-dom"
 import { H3HexagonLayer } from "deck.gl"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -338,16 +337,6 @@ type MapWithEvents = {
   off: (event: string, fn: (...args: unknown[]) => void) => void
 }
 
-// A lightweight IControl-compatible class that provides a DOM container for React portals.
-// Using a portal ensures the buttons live inside maplibre's control DOM hierarchy and
-// are never covered by the deck.gl canvas overlay.
-class ControlContainer {
-  readonly el: HTMLDivElement
-  constructor() { this.el = document.createElement("div") }
-  onAdd() { return this.el }
-  onRemove() { this.el.remove() }
-}
-
 function DrawControl({
   drawRef,
   onUpdate,
@@ -405,11 +394,15 @@ function DrawControl({
   return null
 }
 
+// DrawToolbar renders as a fixed-position overlay (no portal) to avoid React
+// removeChild errors that occur when portalling into MapLibre's control DOM.
+// position: fixed escapes the map's overflow:hidden, so buttons appear correctly.
+// MapLibre's NavigationControl (3 × 29px buttons + 10px top margin) ends at ~97px,
+// so we start the toolbar at 107px (97 + 10px gap margin).
 function DrawToolbar({ drawRef }: { drawRef: React.MutableRefObject<MapboxDraw | null> }) {
   const [isDrawing, setIsDrawing] = React.useState(false)
   const { current: map } = useMap()
 
-  // Track draw mode changes triggered by MapboxDraw itself (e.g. finishing a polygon)
   React.useEffect(() => {
     if (!map) return
     const handleModeChange = (e: unknown) => {
@@ -420,11 +413,6 @@ function DrawToolbar({ drawRef }: { drawRef: React.MutableRefObject<MapboxDraw |
       map.off("draw.modechange", handleModeChange as (...args: unknown[]) => void)
     }
   }, [map])
-
-  const container = (useControl as (...args: unknown[]) => ControlContainer)(
-    () => new ControlContainer(),
-    { position: "top-left" }
-  )
 
   const handleToggleDraw = React.useCallback(() => {
     const draw = drawRef.current
@@ -452,27 +440,26 @@ function DrawToolbar({ drawRef }: { drawRef: React.MutableRefObject<MapboxDraw |
     padding: 0,
   }
 
-  return createPortal(
-    <div className="maplibregl-ctrl maplibregl-ctrl-group">
+  return (
+    <div
+      className="maplibregl-ctrl maplibregl-ctrl-group"
+      style={{ position: "fixed", top: 107, left: 10, zIndex: 10 }}
+    >
       <button
-        title={isDrawing ? "cancel drawing" : "draw polygon"}
+        title={isDrawing ? "取消绘制" : "绘制多边形"}
         onClick={handleToggleDraw}
-        style={{
-          ...btnStyle,
-          backgroundColor: isDrawing ? "#dbeafe" : undefined,
-        }}
+        style={{ ...btnStyle, backgroundColor: isDrawing ? "#dbeafe" : undefined }}
       >
         <Pencil size={15} color={isDrawing ? "#2563eb" : "#333"} />
       </button>
       <button
-        title="delete selected polygon"
+        title="删除选中的多边形"
         onClick={handleDelete}
         style={btnStyle}
       >
         <Trash2 size={15} color="#333" />
       </button>
-    </div>,
-    container.el
+    </div>
   )
 }
 

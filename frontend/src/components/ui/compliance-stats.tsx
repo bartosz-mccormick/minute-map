@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 type HexItem = {
   pop?: number
   compliance_weighted_avg?: number
+  h3_cell?: string
+  [key: string]: unknown
 }
 
 interface ComplianceStatsProps {
@@ -32,12 +34,28 @@ function assignBin(compliance: number): number {
   return -1
 }
 
+const COLOR_DEFAULT  = "#3b82f6"
+const COLOR_SELECTED = "#1d4ed8"
+
 export function ComplianceStats({
   data,
+  selectedBin,
   onSelectBin,
   selectedCellCompliance,
   polygonSelectedCells,
 }: ComplianceStatsProps) {
+  // Derive selected bin index from the selectedBin prop (single source of truth)
+  const selectedBinIndex = React.useMemo(() => {
+    if (!selectedBin) return -1
+    return BINS.findIndex(b => b.min === selectedBin.min && b.max === selectedBin.max)
+  }, [selectedBin])
+
+  // Stable refs to avoid stale closures in event handlers
+  const selectedBinRef = React.useRef(selectedBin)
+  const dataRef = React.useRef(data)
+  React.useEffect(() => { selectedBinRef.current = selectedBin }, [selectedBin])
+  React.useEffect(() => { dataRef.current = data }, [data])
+
   const stats = React.useMemo(() => {
     let totalScore = 0
     let totalPopulation = 0
@@ -54,7 +72,6 @@ export function ComplianceStats({
 
     const weightedAvg = totalPopulation > 0 ? totalScore / totalPopulation : 0
 
-    // Per-bin polygon population (overlay bar heights)
     const polygonBinPop = BINS.map(() => 0)
     if (polygonSelectedCells && polygonSelectedCells.length > 0) {
       polygonSelectedCells.forEach((item) => {
@@ -77,7 +94,7 @@ export function ComplianceStats({
   const hasPolygon = (polygonSelectedCells?.length ?? 0) > 0
 
   const chartOption = React.useMemo(() => {
-    // Single-cell indicator: a thin overlay on the matching bin
+    // Single-cell indicator overlay
     let hoveredBinIndex = -1
     if (!hasPolygon && selectedCellCompliance != null) {
       hoveredBinIndex = assignBin(selectedCellCompliance)
@@ -85,9 +102,6 @@ export function ComplianceStats({
     const hoveredBarData = stats.binPop.map((pop, i) =>
       i === hoveredBinIndex ? pop / 10 : 0
     )
-
-    // Polygon overlay: actual polygon-cell population per bin
-    const polygonBarData = stats.polygonBinPop
 
     return {
       grid: { left: 50, right: 20, top: 20, bottom: 60 },
@@ -106,11 +120,18 @@ export function ComplianceStats({
       series: [
         {
           name: "Population",
-          data: stats.binPop,
           type: "bar",
-          itemStyle: { color: "#3b82f6" },
           barWidth: "60%",
           z: 1,
+          // Per-item styling: selected bar is darker with a top border
+          data: stats.binPop.map((pop, i) => ({
+            value: pop,
+            itemStyle: {
+              color: i === selectedBinIndex ? COLOR_SELECTED : COLOR_DEFAULT,
+              borderColor: i === selectedBinIndex ? "#1e3a8a" : "transparent",
+              borderWidth: i === selectedBinIndex ? 2 : 0,
+            },
+          })),
         },
         {
           name: "Selected Cell",
@@ -123,7 +144,7 @@ export function ComplianceStats({
         },
         {
           name: "Polygon Selection",
-          data: polygonBarData,
+          data: stats.polygonBinPop,
           type: "bar",
           itemStyle: { color: "#ea580c" },
           barWidth: "60%",
@@ -140,7 +161,7 @@ export function ComplianceStats({
           const mainVal = main?.value ?? 0
           const polyVal = poly?.value ?? 0
           const pct = mainVal > 0 ? ((polyVal / mainVal) * 100).toFixed(1) : "0.0"
-          let text = `${params[0]?.name ?? ""}<br/>Total: ${Math.round(mainVal)}`
+          let text = `${params[0]?.name ?? ""}<br/>Total pop: ${Math.round(mainVal)}`
           if (hasPolygon) {
             text += `<br/>In polygon: ${Math.round(polyVal)} (${pct}%)`
           }
@@ -148,17 +169,45 @@ export function ComplianceStats({
         },
       },
     }
-  }, [stats, selectedCellCompliance, hasPolygon])
+  }, [stats, selectedBinIndex, selectedCellCompliance, hasPolygon])
 
   const onChartEvents = React.useMemo(
     () => ({
-      mouseover: (params: { componentType: string; dataIndex?: number }) => {
-        if (params.componentType === "series" && params.dataIndex !== undefined) {
-          const bin = BINS[params.dataIndex]
-          onSelectBin({ min: bin.min, max: bin.max })
+      click: (params: { componentType: string; dataIndex?: number; seriesIndex?: number }) => {
+        // Only respond to clicks on the main Population bars (series 0)
+        if (
+          params.componentType !== "series" ||
+          params.dataIndex === undefined ||
+          params.seriesIndex !== 0
+        ) return
+
+        const bin = BINS[params.dataIndex]
+        const cur = selectedBinRef.current
+
+        // Toggle: clicking the already-selected bin deselects it
+        const isAlreadySelected = cur !== null && cur.min === bin.min && cur.max === bin.max
+        if (isAlreadySelected) {
+          onSelectBin(null)
+          console.log(`[ComplianceStats] Deselected bin ${bin.range}`)
+          return
         }
+
+        onSelectBin({ min: bin.min, max: bin.max })
+
+        // Console output: all cells in the clicked bin
+        const cellsInBin = dataRef.current.filter(item => {
+          const compliance = item.compliance_weighted_avg || 0
+          return assignBin(compliance) === params.dataIndex
+        })
+
+        console.group(`[ComplianceStats] Selected bin: ${bin.range}`)
+        console.log(`  Cells count: ${cellsInBin.length}`)
+        console.log(
+          `  Total population: ${Math.round(cellsInBin.reduce((s, c) => s + (c.pop || 0), 0))}`
+        )
+        console.log("  Cell data:", cellsInBin)
+        console.groupEnd()
       },
-      mouseout: () => onSelectBin(null),
     }),
     [onSelectBin]
   )
@@ -171,15 +220,31 @@ export function ComplianceStats({
         <div className="text-center font-semibold text-sm border-b pb-2">
           Avg. = {stats.weightedAvg.toFixed(2)} | min = {stats.min.toFixed(2)} | max = {stats.max.toFixed(2)}
         </div>
-        {hasPolygon && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 pb-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-[#ea580c]" />
-            <span>Polygon selection ({polygonSelectedCells!.length} cells)</span>
-          </div>
-        )}
+        <div className="flex items-center justify-between text-xs text-gray-500 pb-1 min-h-[20px]">
+          {selectedBinIndex >= 0 ? (
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-3 h-3 rounded-sm"
+                style={{ backgroundColor: COLOR_SELECTED }}
+              />
+              <span>
+                Selected: <strong>{BINS[selectedBinIndex].range}</strong>
+                {" — "}click again to deselect
+              </span>
+            </span>
+          ) : (
+            <span className="text-gray-400 italic">Click a bar to select</span>
+          )}
+          {hasPolygon && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-3 rounded-sm bg-[#ea580c]" />
+              <span>{polygonSelectedCells!.length} cells</span>
+            </span>
+          )}
+        </div>
         <ReactECharts
           option={chartOption}
-          style={{ height: "280px", width: "100%" }}
+          style={{ height: "260px", width: "100%" }}
           opts={{ renderer: "canvas" }}
           onEvents={onChartEvents}
         />
