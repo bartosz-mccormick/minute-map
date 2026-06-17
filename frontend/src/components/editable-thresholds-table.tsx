@@ -33,33 +33,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-
-export interface Threshold {
-  id: string
-  selectedDestinations: string[]
-  quantity: number
-  transportMode: string
-  travelTime: number
-}
-
-export interface TransportMode {
-  value: string
-  label: string
-}
-
-export interface Destination {
-  value: string
-  label: string
-  icon: string
-}
-
-interface EditableThresholdsTableProps {
-  thresholds: Threshold[]
-  setThresholds: (thresholds: Threshold[]) => void
-  transportModes: TransportMode[]
-  destinations: Destination[]
-  maxTravelTime?: number
-}
+import type { EditableThresholdsTableProps, Threshold } from "@/app-types"
 
 export function EditableThresholdsTable({
   thresholds,

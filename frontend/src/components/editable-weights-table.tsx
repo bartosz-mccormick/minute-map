@@ -10,24 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-export interface Weight {
-  id: string
-  selectedDestinations: string[]
-  weight: number
-}
-
-export interface Destination {
-  value: string
-  label: string
-  icon: string
-}
-
-interface EditableWeightsTableProps {
-  weights: Weight[]
-  setWeights: (weights: Weight[]) => void
-  destinations: Destination[]
-}
+import type { EditableWeightsTableProps, Weight } from "@/app-types"
 
 export function EditableWeightsTable({
   weights,

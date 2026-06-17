@@ -1,704 +1,50 @@
 "use client"
 
 import * as React from "react"
-import { Settings, Loader2, Pencil, Trash2 } from "lucide-react"
-import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibre"
-import { H3HexagonLayer } from "deck.gl"
-import { PolygonLayer } from "@deck.gl/layers"
-import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
-import "maplibre-gl/dist/maplibre-gl.css"
-import {colorBins} from "@deck.gl/carto"
-import MapboxDraw from "@mapbox/mapbox-gl-draw"
-import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
-import FreehandMode from "mapbox-gl-draw-freehand-mode"
-import { cellToBoundary } from "h3-js"
-import { booleanIntersects } from "@turf/boolean-intersects"
-import { polygon as turfPolygon } from "@turf/helpers"
-
-
+import { Settings, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import type MapboxDraw from "@mapbox/mapbox-gl-draw"
+import { cellToBoundary } from "h3-js"
+import { booleanIntersects } from "@turf/boolean-intersects"
+import { polygon as turfPolygon } from "@turf/helpers"
 import {
   EditableThresholdsTable,
-  type Threshold,
-  type TransportMode,
-  type Destination,
 } from "@/components/editable-thresholds-table"
 import {
   EditableWeightsTable,
-  type Weight,
 } from "@/components/editable-weights-table"
-
-import { NestedDropdownSelect, type NestedOption } from "./components/nested-dropdown-select"
+import { NestedDropdownSelect } from "./components/nested-dropdown-select"
 import { ComplianceStats } from "@/components/ui/compliance-stats"
-
-//  import hexes from './assets/data.json'; 
-
-// https://labs.mapbox.com/location-helper/#10.04/48.137/11.5738
-const INITIAL_VIEW_STATE = {
-  longitude: Number(import.meta.env.VITE_INITIAL_LONGITUDE),
-  latitude: Number(import.meta.env.VITE_INITIAL_LATITUDE),
-  zoom: Number(import.meta.env.VITE_INITIAL_ZOOM),
-  pitch: Number(import.meta.env.VITE_INITIAL_PITCH),
-  bearing: Number(import.meta.env.VITE_INITIAL_BEARING),
-};
-
-
-const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
-
-const MAX_TT = 30
-
-type Color = [number,number,number]
-const COMPLIANCE_FILL_BOUNDS = [0, .2, .4, .6, .8, 1]
-const COMPLIANCE_FILL_COLORS: Color[] = [
-  [68, 1, 84],
-  [59, 82, 139],
-  [33, 145, 140],
-  [94, 201, 98],
-  [253, 231, 37],
-]
-
-//https://waldyrious.net/viridis-palette-generator/
-const TRAVEL_TIME_FILL_BOUNDS = [0, 5, 10, 15, 20, 25, 30]
-const TRAVEL_TIME_FILL_COLORS: Color[] = [
-  [253, 231, 37],
-  [144, 215, 67],
-  [53, 183, 121],
-  [33, 145, 140],
-  [49, 104, 142],
-  [68, 57, 131],
-  [68, 1, 84],
-]
-
-function getIndicatorValue(indicator: string, d: Record<string, unknown>): number | null {
-  const parts = indicator.split("::")
-  if (parts.length === 1) return (d[indicator] as number) ?? null
-  if (parts.length === 3) {
-    const [amenity, mode, metric] = parts
-    const amenities = d.amenities as Record<string, Record<string, Record<string, number>>> | undefined
-    return amenities?.[amenity]?.[mode]?.[metric] ?? null
-  }
-  return null
-}
-
-function getIndicatorFillConfig(indicator: string | undefined): { bounds: number[]; colors: Color[] } {
-  const isCompliance = indicator?.includes("compliance")
-  return {
-    bounds: isCompliance ? COMPLIANCE_FILL_BOUNDS : TRAVEL_TIME_FILL_BOUNDS,
-    colors: isCompliance ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS,
-  }
-}
-
-type ThresholdPreset = Omit<Threshold, "id">
-
-interface PresetDefinition {
-  label: string
-  weights: Record<string, number>
-  thresholds: Record<string, ThresholdPreset>
-}
-
-/** Presets config: cities as keys, each city has presetId -> preset. */
-type PresetsConfigByCity = Record<string, Record<string, PresetDefinition>>
-
-import presetsConfig from "@/config/presets.json"
-
-const presetsByCity = presetsConfig as unknown as PresetsConfigByCity
-
-/** Flat map of presetId -> preset for applyPreset. */
-const PRESETS: Record<string, PresetDefinition> = {}
-for (const presets of Object.values(presetsByCity)) {
-  for (const [presetId, preset] of Object.entries(presets)) {
-    PRESETS[presetId] = preset
-  }
-}
-
-/** Nested options for preset dropdown: Custom + cities with preset children. */
-const PRESET_NESTED_OPTIONS: NestedOption[] = [
-  { value: "custom", label: "Custom" },
-  ...Object.entries(presetsByCity).map(([cityId, presets]) => ({
-    value: cityId,
-    label: cityId,
-    children: Object.entries(presets).map(([presetId, preset]) => ({
-      value: presetId,
-      label: preset.label,
-    })),
-  })),
-]
-
-
-
-
-const DESTINATIONS: Destination[] = [
-  // Errands & Health
-  { value: "grocery", label: "Supermarket", icon: "🛒" },
-  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
-  { value: "atm_bank", label: "ATM/Bank", icon: "🏧" },
-  { value: "post", label: "Post Office", icon: "📦" },
-  { value: "gp", label: "General Practitioner", icon: "🩺" },
-
-  // Food & Drink
-  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
-  { value: "cafe", label: "Cafe", icon: "☕" },
-  { value: "bar", label: "Bar", icon: "🍺" },
-  { value: "bakery", label: "Bakery", icon: "🥐" },
-
-  // Education & Culture
-  { value: "school", label: "School", icon: "🏫" },
-  { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
-  { value: "library", label: "Library", icon: "📚" },
-
-  // Leisure & Outdoors
-  { value: "sport", label: "Sports Facility", icon: "🏃" },
-  { value: "park", label: "Park", icon: "🌳" },
-  { value: "playground", label: "Playground", icon: "🛝" },
-];
-
-const TRANSPORT_MODES: TransportMode[] = [
-  { value: "walk", label: "Walking (4 km/h)" },
-  { value: "bike", label: "Cycling" },
-  //{ value: "public-transport", label: "Public Transport" },
-]
-
-
-const INITIAL_WEIGHTS: Weight[] = [
-  {
-    id: "weights-entry",
-    selectedDestinations: DESTINATIONS.map((d) => d.value),
-    weight: 1,
-  },
-]
-
-const INITIAL_SCENARIO = "current"
-
-const INITIAL_THRESHOLDS: Threshold[] = []
-
-
-const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
-[
-  { value: "compliance_weighted_avg", label: "X-Min City Compliance" }//,
-  //{ value: "pop", label: "Population" }
-]
-
-const SINGLE_DESTINATION_INDICATORS = [
-  { value: "compliance", label: "Compliance" },
-  { value: "min_travel_time", label: "Time to Nearest" },
-  { value: "min_travel_time_X", label: "Time to Nearest X" },
-
-]
-
-
-function rgb([r, g, b]: Color) {
-  return `rgb(${r} ${g} ${b})`
-}
-
-function fmt(v: number) {
-  return v.toFixed(1).replace(/\.0$/, "")
-}
-
-function LegendBands({
-  bounds,
-  colors,
-  formatValue = fmt,
-}: {
-  bounds: number[]
-  colors: Color[]
-  formatValue?: (v: number) => string
-}) {
-  const bands = React.useMemo(() => {
-    const out: { from: number; to: number; color: Color }[] = []
-    const n = Math.min(colors.length, Math.max(0, bounds.length - 1))
-    for (let i = 0; i < n; i++) {
-      out.push({ from: bounds[i], to: bounds[i + 1], color: colors[i] })
-    }
-    return out
-  }, [bounds, colors])
-
-  return (
-    <div className="space-y-2">
-      <ul className="space-y-1">
-        {bands.map((b, idx) => (
-          <li key={idx} className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span
-                className="h-3 w-3 rounded-[3px] ring-1 ring-black/10"
-                style={{ background: rgb(b.color) }}
-                aria-hidden
-              />
-              <span className="tabular-nums">
-                {formatValue(b.from)}–{formatValue(b.to)}
-              </span>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-
-
-
-
-
-const getDestinationLabel = (value: string) => {
-  return DESTINATIONS.find((d) => d.value === value)?.label || value
-}
-
-const getDestinationIcon = (value: string) => {
-  return DESTINATIONS.find((d) => d.value === value)?.icon || ""
-}
-
-const getModeLabel = (value: string) => {
-  return TRANSPORT_MODES.find((d) => d.value === value)?.label || ""
-}
-
-
-function DeckGLOverlay(props: any) {
-  const overlay = useControl(() => new DeckOverlay(props))
-  overlay.setProps(props)
-  return null
-}
-
-type DrawEvent = { features: GeoJSON.Feature[] }
-
-// Minimal interface for the MapLibre map's event system, used to bind draw events
-type MapWithEvents = {
-  on: (event: string, fn: (...args: unknown[]) => void) => void
-  off: (event: string, fn: (...args: unknown[]) => void) => void
-}
-
-const DRAW_STYLES = [
-  // ACTIVE (being drawn)
-  // line stroke
-  {
-    id: "gl-draw-line",
-    type: "line",
-    filter: ["all", ["==", "$type", "LineString"]],
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#D20C0C",
-      "line-width": 2,
-    },
-  },
-  // polygon fill
-  {
-    id: "gl-draw-polygon-fill",
-    type: "fill",
-    filter: ["all", ["==", "$type", "Polygon"]],
-    paint: {
-      "fill-color": "#D20C0C",
-      "fill-outline-color": "#D20C0C",
-      "fill-opacity": 0,
-    },
-  },
-  // polygon mid points
-  {
-    id: "gl-draw-polygon-midpoint",
-    type: "circle",
-    filter: [
-      "all",
-      ["==", "$type", "Point"],
-      ["==", "meta", "midpoint"],
-    ],
-    paint: {
-      "circle-radius": 3,
-      "circle-color": "#fbb03b",
-    },
-  },
-  // polygon outline stroke
-  // This doesn't style the first edge of the polygon, which uses the line stroke styling instead
-  {
-    id: "gl-draw-polygon-stroke-active",
-    type: "line",
-    filter: ["all", ["==", "$type", "Polygon"]],
-    layout: {
-      "line-cap": "round",
-      "line-join": "round",
-    },
-    paint: {
-      "line-color": "#D20C0C",
-      "line-width": 2,
-    },
-  },
-  // vertex point halos
-  {
-    id: "gl-draw-polygon-and-line-vertex-halo-active",
-    type: "circle",
-    filter: ["all", ["==", "meta", "vertex"], ["==", "$type", "Point"]],
-    paint: {
-      "circle-radius": 5,
-      "circle-color": "#FFF",
-    },
-  },
-  // vertex points
-  {
-    id: "gl-draw-polygon-and-line-vertex-active",
-    type: "circle",
-    filter: ["all", ["==", "meta", "vertex"], ["==", "$type", "Point"]],
-    paint: {
-      "circle-radius": 3,
-      "circle-color": "#D20C0C",
-    },
-  },
-] as unknown as MapboxDraw.MapboxDrawOptions["styles"]
-
-function DrawControl({
-  drawRef,
-  onUpdate,
-  onDelete,
-}: {
-  drawRef?: React.MutableRefObject<MapboxDraw | null>
-  onUpdate: (e: DrawEvent) => void
-  onDelete: (e: DrawEvent) => void
-}) {
-  const onUpdateRef = React.useRef(onUpdate)
-  const onDeleteRef = React.useRef(onDelete)
-
-  React.useEffect(() => {
-    onUpdateRef.current = onUpdate
-    onDeleteRef.current = onDelete
-  })
-
-  const stableOnUpdate = React.useCallback(
-    (e: unknown) => onUpdateRef.current(e as DrawEvent),
-    []
-  )
-  const stableOnDelete = React.useCallback(
-    (e: unknown) => onDeleteRef.current(e as DrawEvent),
-    []
-  )
-
-  // MapboxDraw's IControl is for Mapbox GL, not MapLibre GL, so we cast to bypass the type mismatch.
-  // At runtime, MapboxDraw is fully compatible with MapLibre GL.
-  const draw = (useControl as (...args: unknown[]) => MapboxDraw)(
-    () => new MapboxDraw({
-      displayControlsDefault: false,
-      defaultMode: "simple_select",
-      styles: DRAW_STYLES,
-      modes: {
-        ...MapboxDraw.modes,
-        draw_polygon: FreehandMode,
-      },
-    }),
-    ({ map }: { map: MapWithEvents }) => {
-      map.on("draw.create", stableOnUpdate)
-      map.on("draw.update", stableOnUpdate)
-      map.on("draw.delete", stableOnDelete)
-    },
-    ({ map }: { map: MapWithEvents }) => {
-      map.off("draw.create", stableOnUpdate)
-      map.off("draw.update", stableOnUpdate)
-      map.off("draw.delete", stableOnDelete)
-    },
-  )
-
-  React.useEffect(() => {
-    if (drawRef) drawRef.current = draw
-    return () => { if (drawRef) drawRef.current = null }
-  }, [draw, drawRef])
-
-  return null
-}
-
-// DrawToolbar renders as a fixed-position overlay (no portal) to avoid React
-// removeChild errors that occur when portalling into MapLibre's control DOM.
-// position: fixed escapes the map's overflow:hidden, so buttons appear correctly.
-// MapLibre's NavigationControl (3 × 29px buttons + 10px top margin) ends at ~97px,
-// so we start the toolbar at 107px (97 + 10px gap margin).
-function DrawToolbar({
-  drawRef,
-  onClearPolygons,
-}: {
-  drawRef: React.MutableRefObject<MapboxDraw | null>
-  onClearPolygons?: () => void
-}) {
-  const [isDrawing, setIsDrawing] = React.useState(false)
-  const { current: map } = useMap()
-
-  React.useEffect(() => {
-    if (!map) return
-    const handleModeChange = (e: unknown) => {
-      setIsDrawing((e as { mode: string }).mode === "draw_polygon")
-    }
-    map.on("draw.modechange", handleModeChange as (...args: unknown[]) => void)
-    return () => {
-      map.off("draw.modechange", handleModeChange as (...args: unknown[]) => void)
-    }
-  }, [map])
-
-  const handleToggleDraw = React.useCallback(() => {
-    const draw = drawRef.current
-    if (!draw) return
-
-    if (draw.getMode() === "draw_polygon") {
-      // Turn off drawing mode
-      draw.changeMode("simple_select")
-    } else {
-      // Start a new polygon: clear all existing polygons (both Draw features and overlay state)
-      const all = draw.getAll()
-      const ids = (all.features as any[])
-        .map((f) => f.id)
-        .filter((id): id is string => typeof id === "string")
-      if (ids.length > 0) {
-        draw.delete(ids)
-      }
-      onClearPolygons?.()
-
-      draw.changeMode("draw_polygon")
-    }
-  }, [drawRef, onClearPolygons])
-
-  const handleDelete = React.useCallback(() => {
-    const draw = drawRef.current
-    if (!draw) return
-    const all = draw.getAll()
-    const ids = (all.features as any[])
-      .map((f) => f.id)
-      .filter((id): id is string => typeof id === "string")
-    if (ids.length > 0) {
-      draw.delete(ids)
-    }
-    onClearPolygons?.()
-  }, [drawRef, onClearPolygons])
-
-  const btnStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 29,
-    height: 29,
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    padding: 0,
-  }
-
-  return (
-    <div
-      className="maplibregl-ctrl maplibregl-ctrl-group"
-      style={{ position: "fixed", top: 107, left: 10, zIndex: 10 }}
-    >
-      <button
-        title={isDrawing ? "Cancel" : "Make selection"}
-        onClick={handleToggleDraw}
-        style={{ ...btnStyle, backgroundColor: isDrawing ? "#dbeafe" : undefined }}
-      >
-        <Pencil size={15} color={isDrawing ? "#2563eb" : "#333"} />
-      </button>
-      <button
-        title="Clear selection"
-        onClick={handleDelete}
-        style={btnStyle}
-      >
-        <Trash2 size={15} color="#333" />
-      </button>
-    </div>
-  )
-}
-
-function HexMap({
-  hexData,
-  indicator,
-  getValue,
-  fillBounds,
-  fillColors,
-  selectedCells,
-  drawnPolygons,
-  onCellClick,
-  onPolygonsChange,
-  drawRef,
-}: {
-  hexData: any[]
-  indicator: string
-  getValue: (d: any) => number | null
-  fillBounds: number[]
-  fillColors: Color[]
-  selectedCells: { h3_cell: string; [key: string]: unknown }[]
-  drawnPolygons: GeoJSON.Feature[]
-  onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
-  onPolygonsChange?: (features: GeoJSON.Feature[]) => void
-  drawRef?: React.MutableRefObject<MapboxDraw | null>
-}) {
-  const getColorFunction = React.useMemo(
-    () =>
-      colorBins({
-        attr: (d: any) => getValue(d) ?? 0,
-        domain: fillBounds.slice(1, -1),
-        colors: fillColors,
-      }),
-    [getValue, fillBounds, fillColors]
-  )
-  
-  const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
-
-  const layers = React.useMemo(() => {
-    const hexLayer = new H3HexagonLayer({
-      id: `H3HexagonLayer-${indicator}`,
-      data: hexData,
-      elevationScale: 1000,
-      extruded: false,
-      filled: true,
-      getElevation: (d: any) => getValue(d) ?? 0,
-      getFillColor: (d: any, info: any) => {
-        if (getValue(d) === null) return NO_DATA_COLOR
-        const baseColor = getColorFunction(d, info)
-        // When there is a selection, dim cells that are not selected
-        if (selectedCells.length > 0) {
-          const isSelected = selectedCells.some((c) => c.h3_cell === d.h3_cell)
-          if (!isSelected) {
-            return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
-          }
-        }
-        return baseColor
-      },
-      getLineColor: () => {
-        return [255, 255, 255, 255] as [number, number, number, number]
-      },
-      lineWidthMinPixels: 1,
-      getHexagon: (d: any) => d.h3_cell,
-      wireframe: false,
-      pickable: true,
-      opacity: 0.3,
-      updateTriggers: {
-        getElevation: indicator,
-        getFillColor: [indicator, selectedCells],
-        getLineColor: [selectedCells],
-      },
-    })
-
-    const polygonFeatures = (drawnPolygons ?? []).filter(
-      (f: GeoJSON.Feature) => f.geometry?.type === "Polygon"
-    )
-
-    const polygonLayer =
-      polygonFeatures.length > 0
-        ? new PolygonLayer({
-            id: "DrawnPolygonLayer",
-            data: polygonFeatures,
-            getPolygon: (f: any) => f.geometry?.coordinates ?? [],
-            getFillColor: [210, 12, 12, 0],
-            getLineColor: [210, 12, 12, 255],
-            getLineWidth: 2,
-            lineWidthUnits: "pixels",
-            pickable: false,
-          })
-        : null
-
-    return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
-  }, [hexData, getValue, indicator, selectedCells, getColorFunction, drawnPolygons])
-
-  const handlePolygonUpdate = React.useCallback(
-    (e: DrawEvent) => {
-      if (!onPolygonsChange) return
-      const draw = drawRef?.current
-
-      if (draw) {
-        const all = draw.getAll()
-        const features = all.features as GeoJSON.Feature[]
-
-        if (features.length > 1) {
-          const idsToDelete = features
-            .slice(0, -1)
-            .map((f: any) => f.id)
-            .filter((id): id is string => typeof id === "string")
-          if (idsToDelete.length > 0) {
-            draw.delete(idsToDelete)
-          }
-        }
-
-        const remaining = draw.getAll().features as GeoJSON.Feature[]
-        onPolygonsChange(remaining)
-      } else {
-        const features = e.features
-        const last = features[features.length - 1]
-        onPolygonsChange(last ? [last] : [])
-      }
-    },
-    [onPolygonsChange, drawRef]
-  )
-
-  const handlePolygonDelete = React.useCallback(
-    (e: DrawEvent) => {
-      if (!onPolygonsChange) return
-      const draw = drawRef?.current
-
-      if (draw) {
-        onPolygonsChange(draw.getAll().features as GeoJSON.Feature[])
-      } else {
-        onPolygonsChange(e.features)
-      }
-    },
-    [onPolygonsChange, drawRef]
-  )
-
-  return (
-    <Map
-      initialViewState={INITIAL_VIEW_STATE}
-      mapStyle={MAP_STYLE}
-      style={{ width: "100%", height: "100%" }}
-    >
-      <DeckGLOverlay
-        layers={layers}
-        onClick={({ object }: any) => {
-          onCellClick?.(object ?? null);
-        }}
-        getTooltip={({ object }: any) => {
-          if (!object) return null;
-
-          const amenities = object?.amenities ?? {};
-          const lines: string[] = [];
-          const lines2: string[] = [];
-
-          Object.entries(amenities).forEach(([amenity, amenityData]: [string, any]) => {
-            const walkData = amenityData?.walk;
-            if (walkData && typeof walkData === "object") {
-              const t = walkData?.min_travel_time;
-              const c = walkData?.compliance;
-              const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`;
-              let complies: string;
-              if (c === 1) {
-                complies = '✅'
-              } else if (c === 0) {
-                complies = '❌'
-              } else {
-                complies = '⚠️'
-              }
-              lines.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${display} ${complies}`);
-              const total_n = walkData?.total_n;
-              lines2.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${total_n}`);
-            }
-          });
-
-          const val = getValue(object)
-          if (val === null) return "No data"
-          const isCompliance = indicator.includes("compliance")
-          return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%
-    ${
-      indicator !== "compliance_weighted_avg"
-        ? isCompliance
-            ? `${Math.round(val * 100)}%`
-            : `${val} minutes`
-        : ""
-    }`
-        }}
-      />
-      <NavigationControl position="top-left" />
-      <DrawControl
-        drawRef={drawRef}
-        onUpdate={handlePolygonUpdate}
-        onDelete={handlePolygonDelete}
-      />
-      <DrawToolbar
-        drawRef={drawRef as React.MutableRefObject<MapboxDraw | null>}
-        onClearPolygons={() => onPolygonsChange?.([])}
-      />
-    </Map>
-  )
+import { HexMap } from "./components/hex-map"
+import { LegendBands } from "./components/legend-bands"
+import {
+  ALWAYS_AVAILABLE_INDICATORS,
+  DESTINATIONS,
+  fmt,
+  getDestinationIcon,
+  getDestinationLabel,
+  getIndicatorFillConfig,
+  getIndicatorValue,
+  getModeLabel,
+  INITIAL_SCENARIO,
+  INITIAL_THRESHOLDS,
+  INITIAL_WEIGHTS,
+  MAX_TT,
+  PRESET_NESTED_OPTIONS,
+  PRESETS,
+  SINGLE_DESTINATION_INDICATORS,
+  TRANSPORT_MODES,
+} from "@/app-config"
+import type { NestedOption, Threshold, Weight } from "@/app-types"
+
+const USE_FIXTURE_RESPONSE = import.meta.env.VITE_USE_FIXTURE_RESPONSE === "true"
+
+async function loadFixtureResponse(): Promise<any[]> {
+  const module = await import("./fixtures/munich-compliance-summary-response.json")
+  return module.default as any[]
 }
 
 const travelScenarios = [
@@ -853,6 +199,54 @@ export default function app() {
       amenity_weights: amenityWeights,
       amenity_thresholds: amenityThresholds,
     };
+
+    if (USE_FIXTURE_RESPONSE) {
+      const data: any[] = await loadFixtureResponse()
+      setHexData(data)
+
+      console.log('RPC payload:', { scenario: selectedScenario, _groups: payload })
+      console.log('Fixture response loaded:', data)
+      console.log(availableIndicators)
+
+      let totalScore = 0
+      let totalPopulation = 0
+
+      data.forEach((item) => {
+        const pop = item.pop || 0
+        const compliance = item.compliance_weighted_avg || 0
+        const contribution = pop * compliance
+
+        totalScore += contribution
+        totalPopulation += pop
+      })
+
+      const weightedAverage = totalPopulation > 0 ? totalScore / totalPopulation : 0
+      console.log('total score (numerator):', totalScore)
+      console.log('total population (denominator):', totalPopulation)
+      console.log('weighted average score:', weightedAverage)
+
+      setConfigOpen(false)
+      setLoading(false)
+
+      const newIndicatorOptions: NestedOption[] = [
+        ...ALWAYS_AVAILABLE_INDICATORS,
+        ...Object.entries(amenityToModes).map(([a, modes]) => ({
+          value: a ,
+          label: getDestinationIcon(a) + getDestinationLabel(a),
+          children: modes.map((mode) => ({
+            value: a + '::' + mode,
+            label: getModeLabel(mode),
+            children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
+              value: a + '::' + mode + '::' + indicator.value,
+              label: indicator.label,
+            })),
+          })),
+        })),
+      ]
+
+      setAvailableIndicators(newIndicatorOptions)
+      return
+    }
 
     try {
       const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_by_amenity_batch`, {
@@ -1173,3 +567,4 @@ export default function app() {
     </div>
   )
 }
+

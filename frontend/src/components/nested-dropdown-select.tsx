@@ -1,6 +1,7 @@
 import * as React from "react"
 import { ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { NestedOption } from "@/app-types"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,15 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export type NestedOption = {
-  value: string
-  label: string
-  children?: NestedOption[]
-  /** If true, clicking this item selects it even if it has children (default: false) */
-  selectableWhenHasChildren?: boolean
-  /** Optional: disable an item */
-  disabled?: boolean
-}
+export type { NestedOption } from "@/app-types"
 
 type NestedDropdownSelectProps = {
   options: NestedOption[]
