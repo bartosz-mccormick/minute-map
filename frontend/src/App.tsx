@@ -36,6 +36,7 @@ import {
 import { NestedDropdownSelect, type NestedOption } from "./components/nested-dropdown-select"
 import { ComplianceStats } from "@/components/ui/compliance-stats"
 
+import type { DuckDbClient } from "./db/duckdb/createDuckDb";
 //  import hexes from './assets/data.json'; 
 
 // https://labs.mapbox.com/location-helper/#10.04/48.137/11.5738
@@ -185,8 +186,7 @@ const ALWAYS_AVAILABLE_INDICATORS:  NestedOption[] =
 
 const SINGLE_DESTINATION_INDICATORS = [
   { value: "compliance", label: "Compliance" },
-  { value: "min_travel_time", label: "Time to Nearest" },
-  { value: "min_travel_time_X", label: "Time to Nearest X" },
+  { value: "min_travel_time", label: "Time to Nearest" }
 
 ]
 
@@ -723,6 +723,10 @@ export default function app() {
   const [availableIndicators, setAvailableIndicators] = React.useState<NestedOption[]>(
     ALWAYS_AVAILABLE_INDICATORS
   )
+  // duck db
+
+  const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
+  const [duckDbReady, setDuckDbReady] = React.useState(false)
 
   // map data
   const [hexData, setHexData] = React.useState<any[]>([]);
@@ -731,6 +735,7 @@ export default function app() {
   // polygon drawing (only keep the last polygon)
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDraw | null>(null)
+
 
   // Compute which hex cells overlap with the drawn polygon
   const polygonSelectedCells = React.useMemo(() => {
@@ -755,13 +760,17 @@ export default function app() {
   React.useEffect(() => {
     async function run() {
       const client = await createDuckDb();
-
+  
       await setupDb(client);
-
+  
       await createTestInputTables(client.conn);
+  
+      duckDbClientRef.current = client;
+      setDuckDbReady(true);
 
+      console.log("DuckDB ready");
     }
-
+  
     run().catch(console.error);
   }, []);
 
@@ -815,8 +824,6 @@ export default function app() {
     },
     [hexData, drawRef, selectedCells, selectedIndicator]
   )
-
-  const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
 
   const [loading, setLoading] = React.useState(false);
   
@@ -873,26 +880,20 @@ export default function app() {
     };
 
     try {
-      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_by_amenity_batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Profile': 'api'
-        },
-        body: JSON.stringify({ _groups: payload }),
-      });
-  
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status} – ${text}`);
+      const client = duckDbClientRef.current;
+
+      if (!client || !duckDbReady) {
+        throw new Error("DuckDB is not ready yet.");
       }
-  
-      const data: any[] = await res.json();
-      setHexData(data)
-  
-      console.log('RPC payload:', { scenario: selectedScenario, _groups: payload });
-      console.log('RPC response:', data);
-      console.log(availableIndicators)
+
+      const data = await runCalculations(client.conn);
+
+      setHexData(data);
+    
+      console.log("DuckDB scenario:", selectedScenario);
+      console.log("DuckDB input payload:", payload);
+      console.log("DuckDB response:", data);
+      console.log(availableIndicators);
 
       // calculate weighted average score
       let totalScore = 0; // numerator: total score
@@ -916,7 +917,7 @@ export default function app() {
   
       setConfigOpen(false);
     } catch (e) {
-      console.error('PostgREST RPC failed:', e);
+      console.error("DuckDB calculation failed:", e);
       setAvailableIndicators([])
     } finally{
       setLoading(false);

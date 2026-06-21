@@ -9,33 +9,29 @@ type RawBatchRow = {
   X: number;
   B: number | null;
   min_travel_time: number | null;
-  min_travel_time_X?: number | null;
-  n_total?: number;
-  total_n?: number;
+  n_total: number;
   compliance: number;
 };
 
 type RawSummaryRow = {
   h3_cell: string;
   pop: number;
-  compliance_weighted_avg?: number;
-  compliance?: number;
+  compliance_weighted_avg: number;
 };
 
 type CellAmenityModeResult = {
   T: number;
   X: number;
   B: number | null;
-  compliance: number;
+  compliance: number | null;
   min_travel_time: number | null;
-  min_travel_time_X: number | null;
-  total_n: number;
+  n_total: number;
 };
 
 type CellResult = {
   h3_cell: string;
   pop: number;
-  compliance_weighted_avg: number;
+  compliance_weighted_avg: number | null;
   amenities: {
     [class_b: string]: {
       [mode_config: string]: CellAmenityModeResult;
@@ -86,7 +82,7 @@ export async function runCalculations(
         h3_cell: row.h3_cell,
         pop: row.pop,
         compliance_weighted_avg:
-          summary?.compliance_weighted_avg ?? summary?.compliance ?? 0,
+          summary?.compliance_weighted_avg ?? null,
         amenities: {},
       });
     }
@@ -103,8 +99,7 @@ export async function runCalculations(
       B: row.B,
       compliance: row.compliance,
       min_travel_time: row.min_travel_time,
-      min_travel_time_X: row.min_travel_time_X ?? row.min_travel_time ?? null,
-      total_n: row.total_n ?? row.n_total ?? 0,
+      n_total: row.n_total,
     };
   }
 
