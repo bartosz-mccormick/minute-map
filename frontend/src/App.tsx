@@ -16,7 +16,7 @@ import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
 import { createDuckDb} from "./db/duckdb/createDuckDb"
 import { setupDb } from "./db/duckdb/setupDb"
-import { createTestInputTables} from "./db/duckdb/createTestInputTables.ts"
+import { createInputTables } from "./db/duckdb/createInputTables"
 import { runCalculations } from "./db/duckdb/runCalculations"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -256,6 +256,29 @@ const getModeLabel = (value: string) => {
   return TRANSPORT_MODES.find((d) => d.value === value)?.label || ""
 }
 
+function buildIndicatorOptions(thresholds: Threshold[]): NestedOption[] {
+  const amenityModes: Record<string, Set<string>> = {}
+  for (const t of thresholds) {
+    for (const a of t.selectedDestinations) {
+      (amenityModes[a] ??= new Set()).add(t.transportMode)
+    }
+  }
+  return [
+    ...ALWAYS_AVAILABLE_INDICATORS,
+    ...Object.entries(amenityModes).map(([a, modes]) => ({
+      value: a,
+      label: getDestinationIcon(a) + getDestinationLabel(a),
+      children: [...modes].sort().map((mode) => ({
+        value: `${a}::${mode}`,
+        label: getModeLabel(mode),
+        children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
+          value: `${a}::${mode}::${indicator.value}`,
+          label: indicator.label,
+        })),
+      })),
+    })),
+  ]
+}
 
 function DeckGLOverlay(props: any) {
   const overlay = useControl(() => new DeckOverlay(props))
@@ -762,9 +785,7 @@ export default function app() {
       const client = await createDuckDb();
   
       await setupDb(client);
-  
-      await createTestInputTables(client.conn);
-  
+
       duckDbClientRef.current = client;
       setDuckDbReady(true);
 
@@ -829,122 +850,22 @@ export default function app() {
   
   const handleAnalyze = async () => {
     setLoading(true);
-
-    // Build amenity_weights from current weights state.
-    // If multiple weight entries are ever supported, later ones will override earlier ones per amenity.
-    const amenityWeights: Record<string, number> = {};
-    for (const entry of weights) {
-      for (const amenity of entry.selectedDestinations) {
-        amenityWeights[amenity] = entry.weight;
-      }
-    }
-
-
-
-
-
-    // Build amenity_thresholds array from thresholds + build mode->amenities
-    const amenityToModesSets: Record<string, Set<string>> = {}
-
-    const amenityThresholds = thresholds.map((t) => {
-      const mode = t.transportMode
-
-      for (const a of t.selectedDestinations ?? []) {
-        const set = (amenityToModesSets[a] ??= new Set<string>())
-
-        if (mode) set.add(mode)
-      }
-
-      return {
-        mode,
-        T: t.travelTime,
-        X: t.quantity,
-        amenities: t.selectedDestinations,
-      }
-    })
-
-    // Convert Set -> sorted array
-    const amenityToModes: Record<string, string[]> = Object.fromEntries(
-      Object.entries(amenityToModesSets).map(([a, set]) => [
-        a,
-        [...set].sort(),
-      ])
-    )
-
-    
-
-  
-    const payload = {
-      amenity_weights: amenityWeights,
-      amenity_thresholds: amenityThresholds,
-    };
-
     try {
       const client = duckDbClientRef.current;
-
       if (!client || !duckDbReady) {
         throw new Error("DuckDB is not ready yet.");
       }
 
+      await createInputTables(client.conn, thresholds, weights);
       const data = await runCalculations(client.conn);
-
       setHexData(data);
-    
-      console.log("DuckDB scenario:", selectedScenario);
-      console.log("DuckDB input payload:", payload);
-      console.log("DuckDB response:", data);
-      console.log(availableIndicators);
-
-      // calculate weighted average score
-      let totalScore = 0; // numerator: total score
-      let totalPopulation = 0; // denominator: total population
-      
-      data.forEach((item) => {
-        const pop = item.pop || 0; // population
-        const compliance = item.compliance_weighted_avg || 0; // compliance score
-        
-        // calculate the contribution of each hexagon
-        const contribution = pop * compliance;
-        
-        totalScore += contribution;
-        totalPopulation += pop;
-      });
-      // calculate weighted average score
-      const weightedAverage = totalPopulation > 0 ? totalScore / totalPopulation : 0;
-      console.log('total score (numerator):', totalScore);
-      console.log('total population (denominator):', totalPopulation);
-      console.log('weighted average score:', weightedAverage);
-  
+      setAvailableIndicators(buildIndicatorOptions(thresholds));
       setConfigOpen(false);
     } catch (e) {
       console.error("DuckDB calculation failed:", e);
-      setAvailableIndicators([])
-    } finally{
+      setAvailableIndicators([]);
+    } finally {
       setLoading(false);
-      
-
-      // update available indicators
-
-      const newIndicatorOptions: NestedOption[] = [
-        ...ALWAYS_AVAILABLE_INDICATORS,
-        ...Object.entries(amenityToModes).map(([a, modes]) => ({
-          value: a ,
-          label: getDestinationIcon(a) + getDestinationLabel(a),
-          children: modes.map((mode) => ({
-            value: a + '::' + mode,
-            label: getModeLabel(mode),
-            children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
-              value: a + '::' + mode + '::' + indicator.value,
-              label: indicator.label,
-            })),
-          })),
-        })),
-      ]
-
-      
-
-      setAvailableIndicators(
-        newIndicatorOptions)
     }
   }
 
