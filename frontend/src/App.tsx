@@ -14,8 +14,10 @@ import FreehandMode from "mapbox-gl-draw-freehand-mode"
 import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
-
-
+import { createDuckDb} from "./db/duckdb/createDuckDb"
+import { setupDb } from "./db/duckdb/setupDb"
+import { createTestInputTables} from "./db/duckdb/createTestInputTables.ts"
+import { runCalculations } from "./db/duckdb/runCalculations"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -748,6 +750,22 @@ export default function app() {
       }
     })
   }, [drawnPolygons, hexData])
+
+  // initialize duck db
+  React.useEffect(() => {
+    async function run() {
+      const client = await createDuckDb();
+
+      await setupDb(client);
+
+      await createTestInputTables(client.conn);
+
+    }
+
+    run().catch(console.error);
+  }, []);
+
+
 
   // When a polygon is drawn/updated, selection becomes the cells it covers.
   // When polygons are cleared (trash or selecting a bin), selection is updated elsewhere.
