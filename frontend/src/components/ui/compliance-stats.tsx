@@ -20,6 +20,7 @@ interface ComplianceStatsProps {
   selectedCells?: HexItem[]
   /** Format axis labels (default: one decimal, no trailing .0) */
   formatValue?: (v: number) => string
+  className?: string
 }
 
 function buildBins(bounds: number[], formatValue: (v: number) => string): { range: string; min: number; max: number }[] {
@@ -49,6 +50,7 @@ export function ComplianceStats({
   onSelectBin,
   selectedCells,
   formatValue = defaultFormatValue,
+  className = "fixed bottom-4 right-4 z-10 bg-white shadow-lg w-[380px]",
 }: ComplianceStatsProps) {
   const bins = React.useMemo(() => buildBins(bounds, formatValue), [bounds, formatValue])
 
@@ -164,7 +166,7 @@ export function ComplianceStats({
   if (data.length === 0) return null
 
   return (
-    <Card className="fixed bottom-4 right-4 z-10 bg-white shadow-lg w-[380px]">
+    <Card className={className}>
       <CardContent className="p-4 space-y-2">
         <div className="space-y-1 text-xs text-gray-700 border-b pb-2">
           <div className="flex items-center justify-between">

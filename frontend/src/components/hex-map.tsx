@@ -10,13 +10,7 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw"
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 import FreehandMode from "mapbox-gl-draw-freehand-mode"
 import type { DrawEvent, HexMapProps, MapWithEvents } from "@/app-types"
-import {
-  getDestinationIcon,
-  getDestinationLabel,
-  INITIAL_VIEW_STATE,
-  MAP_STYLE,
-  MAX_TT,
-} from "@/app-config"
+import { INITIAL_VIEW_STATE, MAP_STYLE } from "@/app-config"
 
 const DRAW_STYLES = [
   {
@@ -100,8 +94,8 @@ function DrawControl({
   onDelete,
 }: {
   drawRef?: React.MutableRefObject<MapboxDraw | null>
-  onUpdate: (e: DrawEvent) => void
-  onDelete: (e: DrawEvent) => void
+  onUpdate: (event: DrawEvent) => void
+  onDelete: (event: DrawEvent) => void
 }) {
   const onUpdateRef = React.useRef(onUpdate)
   const onDeleteRef = React.useRef(onDelete)
@@ -112,11 +106,11 @@ function DrawControl({
   })
 
   const stableOnUpdate = React.useCallback(
-    (e: unknown) => onUpdateRef.current(e as DrawEvent),
+    (event: unknown) => onUpdateRef.current(event as DrawEvent),
     []
   )
   const stableOnDelete = React.useCallback(
-    (e: unknown) => onDeleteRef.current(e as DrawEvent),
+    (event: unknown) => onDeleteRef.current(event as DrawEvent),
     []
   )
 
@@ -164,8 +158,8 @@ function DrawToolbar({
 
   React.useEffect(() => {
     if (!map) return
-    const handleModeChange = (e: unknown) => {
-      setIsDrawing((e as { mode: string }).mode === "draw_polygon")
+    const handleModeChange = (event: unknown) => {
+      setIsDrawing((event as { mode: string }).mode === "draw_polygon")
     }
     map.on("draw.modechange", handleModeChange as (...args: unknown[]) => void)
     return () => {
@@ -182,7 +176,7 @@ function DrawToolbar({
     } else {
       const all = draw.getAll()
       const ids = (all.features as any[])
-        .map((f) => f.id)
+        .map((feature) => feature.id)
         .filter((id): id is string => typeof id === "string")
       if (ids.length > 0) {
         draw.delete(ids)
@@ -198,7 +192,7 @@ function DrawToolbar({
     if (!draw) return
     const all = draw.getAll()
     const ids = (all.features as any[])
-      .map((f) => f.id)
+      .map((feature) => feature.id)
       .filter((id): id is string => typeof id === "string")
     if (ids.length > 0) {
       draw.delete(ids)
@@ -255,14 +249,14 @@ export function HexMap({
   const getColorFunction = React.useMemo(
     () =>
       colorBins({
-        attr: (d: any) => d.value ?? 0,
+        attr: (row: any) => row.value ?? 0,
         domain: fillBounds.slice(1, -1),
         colors: fillColors,
       }),
     [fillBounds, fillColors]
   )
 
-  const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
+  const noDataColor: [number, number, number, number] = [200, 200, 200, 60]
 
   const layers = React.useMemo(() => {
     const hexLayer = new H3HexagonLayer({
@@ -271,23 +265,18 @@ export function HexMap({
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: (d: any) => d.value ?? 0,
-      getFillColor: (d: any, info: any) => {
-        if (d.value === null || d.value === undefined) return NO_DATA_COLOR
-        const baseColor = getColorFunction(d, info)
-        if (selectedCellIds.size > 0) {
-          const isSelected = selectedCellIds.has(d.h3_cell)
-          if (!isSelected) {
-            return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
-          }
+      getElevation: (row: any) => row.value ?? 0,
+      getFillColor: (row: any, info: any) => {
+        if (row.value === null || row.value === undefined) return noDataColor
+        const baseColor = getColorFunction(row, info)
+        if (selectedCellIds.size > 0 && !selectedCellIds.has(row.h3_cell)) {
+          return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
         }
         return baseColor
       },
-      getLineColor: () => {
-        return [255, 255, 255, 255] as [number, number, number, number]
-      },
+      getLineColor: () => [255, 255, 255, 255] as [number, number, number, number],
       lineWidthMinPixels: 1,
-      getHexagon: (d: any) => d.h3_cell,
+      getHexagon: (row: any) => row.h3_cell,
       wireframe: false,
       pickable: true,
       opacity: 0.3,
@@ -299,7 +288,7 @@ export function HexMap({
     })
 
     const polygonFeatures = (drawnPolygons ?? []).filter(
-      (f: GeoJSON.Feature) => f.geometry?.type === "Polygon"
+      (feature: GeoJSON.Feature) => feature.geometry?.type === "Polygon"
     )
 
     const polygonLayer =
@@ -307,7 +296,7 @@ export function HexMap({
         ? new PolygonLayer({
             id: "DrawnPolygonLayer",
             data: polygonFeatures,
-            getPolygon: (f: any) => f.geometry?.coordinates ?? [],
+            getPolygon: (feature: any) => feature.geometry?.coordinates ?? [],
             getFillColor: [210, 12, 12, 0],
             getLineColor: [210, 12, 12, 255],
             getLineWidth: 2,
@@ -320,7 +309,7 @@ export function HexMap({
   }, [hexData, indicator, selectedCellIds, getColorFunction, drawnPolygons])
 
   const handlePolygonUpdate = React.useCallback(
-    (e: DrawEvent) => {
+    (event: DrawEvent) => {
       if (!onPolygonsChange) return
       const draw = drawRef?.current
 
@@ -331,17 +320,16 @@ export function HexMap({
         if (features.length > 1) {
           const idsToDelete = features
             .slice(0, -1)
-            .map((f: any) => f.id)
+            .map((feature: any) => feature.id)
             .filter((id): id is string => typeof id === "string")
           if (idsToDelete.length > 0) {
             draw.delete(idsToDelete)
           }
         }
 
-        const remaining = draw.getAll().features as GeoJSON.Feature[]
-        onPolygonsChange(remaining)
+        onPolygonsChange(draw.getAll().features as GeoJSON.Feature[])
       } else {
-        const features = e.features
+        const features = event.features
         const last = features[features.length - 1]
         onPolygonsChange(last ? [last] : [])
       }
@@ -350,15 +338,10 @@ export function HexMap({
   )
 
   const handlePolygonDelete = React.useCallback(
-    (e: DrawEvent) => {
+    (event: DrawEvent) => {
       if (!onPolygonsChange) return
       const draw = drawRef?.current
-
-      if (draw) {
-        onPolygonsChange(draw.getAll().features as GeoJSON.Feature[])
-      } else {
-        onPolygonsChange(e.features)
-      }
+      onPolygonsChange(draw ? (draw.getAll().features as GeoJSON.Feature[]) : event.features)
     },
     [onPolygonsChange, drawRef]
   )
@@ -376,42 +359,19 @@ export function HexMap({
         }}
         getTooltip={({ object }: any) => {
           if (!object) return null
+          const value = object.value ?? null
+          if (value === null) return "No data"
 
-          const amenities = object?.amenities ?? {}
-          const lines: string[] = []
-          const lines2: string[] = []
-
-          Object.entries(amenities).forEach(([amenity, amenityData]: [string, any]) => {
-            const walkData = amenityData?.walk
-            if (walkData && typeof walkData === "object") {
-              const t = walkData?.min_travel_time
-              const c = walkData?.compliance
-              const display = Number.isFinite(t) ? `${t} min` : `> ${MAX_TT} min`
-              let complies: string
-              if (c === 1) {
-                complies = "✅"
-              } else if (c === 0) {
-                complies = "❌"
-              } else {
-                complies = "⚠️"
-              }
-              lines.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${display} ${complies}`)
-              const total_n = walkData?.total_n
-              lines2.push(`${getDestinationIcon(amenity)} ${getDestinationLabel(amenity)}: ${total_n}`)
-            }
-          })
-
-          const val = object.value ?? null
-          if (val === null) return "No data"
           const isCompliance = indicator.includes("compliance")
-          return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%
-    ${
-      indicator !== "compliance_weighted_avg"
-        ? isCompliance
-            ? `${Math.round(val * 100)}%`
-            : `${val} minutes`
-        : ""
-    }`
+          const compliance = object.compliance_weighted_avg ?? null
+          const indicatorValue =
+            indicator === "compliance_weighted_avg"
+              ? ""
+              : isCompliance
+                ? `\nValue: ${Math.round(value * 100)}%`
+                : `\nValue: ${value} minutes`
+
+          return `Compliance: ${compliance === null ? "No data" : `${Math.round(compliance * 100)}%`}${indicatorValue}`
         }}
       />
       <NavigationControl position="top-left" />

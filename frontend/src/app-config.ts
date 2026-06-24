@@ -115,17 +115,6 @@ export const PRESET_NESTED_OPTIONS: NestedOption[] = [
   })),
 ]
 
-export function getIndicatorValue(indicator: string, d: Record<string, unknown>): number | null {
-  const parts = indicator.split("::")
-  if (parts.length === 1) return (d[indicator] as number) ?? null
-  if (parts.length === 3) {
-    const [amenity, mode, metric] = parts
-    const amenities = d.amenities as Record<string, Record<string, Record<string, number>>> | undefined
-    return amenities?.[amenity]?.[mode]?.[metric] ?? null
-  }
-  return null
-}
-
 export function getIndicatorFillConfig(indicator: string | undefined): { bounds: number[]; colors: Color[] } {
   const isCompliance = indicator?.includes("compliance")
   return {

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Settings, Loader2 } from "lucide-react"
+import { Info, Settings, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,7 +22,6 @@ import {
   DESTINATIONS,
   fmt,
   getIndicatorFillConfig,
-  getIndicatorValue,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
   INITIAL_WEIGHTS,
@@ -33,6 +32,7 @@ import {
 } from "@/app-config"
 import type { NestedOption, Threshold, Weight } from "@/app-types"
 import type { DuckDbClient } from "./db/duckdb/createDuckDb"
+import type { CellDetailRow } from "./db/duckdb/runCalculations"
 
 const travelScenarios = [
   { value: "current", label: "Current" },
@@ -68,6 +68,9 @@ export default function app() {
 
   const [hexData, setHexData] = React.useState<any[]>([])
   const [selectedCellIds, setSelectedCellIds] = React.useState<Set<string>>(() => new Set())
+  const [selectedCellDetails, setSelectedCellDetails] = React.useState<CellDetailRow[]>([])
+  const [selectedCellDetailsCellId, setSelectedCellDetailsCellId] = React.useState<string | null>(null)
+  const [selectedCellDetailsLoading, setSelectedCellDetailsLoading] = React.useState(false)
   const selectedCellsData = React.useMemo(
     () => hexData.filter((cell) => selectedCellIds.has(cell.h3_cell)),
     [hexData, selectedCellIds]
@@ -142,10 +145,56 @@ export default function app() {
 
   const getValue = React.useCallback(
     (d: Record<string, unknown>) => {
-      if ("value" in d) return (d.value as number | null) ?? null
-      return getIndicatorValue(selectedIndicator ?? "", d)
+      return (d.value as number | null | undefined) ?? null
     },
-    [selectedIndicator]
+    []
+  )
+
+  const clearSelectedCellDetails = React.useCallback(() => {
+    setSelectedCellDetails([])
+    setSelectedCellDetailsCellId(null)
+    setSelectedCellDetailsLoading(false)
+  }, [])
+
+  const loadSelectedCellDetails = React.useCallback(
+    async (h3Cell: string) => {
+      setSelectedCellDetails([])
+      setSelectedCellDetailsCellId(h3Cell)
+      setSelectedCellDetailsLoading(true)
+
+      try {
+        const client = await ensureDuckDbClient()
+        const { getCellDetails } = await import("./db/duckdb/runCalculations")
+        const details = await getCellDetails(client.conn, h3Cell)
+        setSelectedCellDetails(details)
+      } catch (error) {
+        console.error("DuckDB cell details query failed:", error)
+        setSelectedCellDetails([])
+      } finally {
+        setSelectedCellDetailsLoading(false)
+      }
+    },
+    [ensureDuckDbClient]
+  )
+
+  const handleMapCellClick = React.useCallback(
+    (obj: { h3_cell: string } | null) => {
+      if (!obj) {
+        setSelectedCellIds(new Set())
+        clearSelectedCellDetails()
+        return
+      }
+
+      if (selectedCellIds.has(obj.h3_cell) && selectedCellIds.size === 1) {
+        setSelectedCellIds(new Set())
+        clearSelectedCellDetails()
+        return
+      }
+
+      setSelectedCellIds(new Set([obj.h3_cell]))
+      void loadSelectedCellDetails(obj.h3_cell)
+    },
+    [clearSelectedCellDetails, loadSelectedCellDetails, selectedCellIds]
   )
 
   const handleIndicatorChange = React.useCallback(
@@ -170,6 +219,7 @@ export default function app() {
     (bin: { min: number; max: number } | null) => {
       if (bin === null) {
         setSelectedCellIds(new Set())
+        clearSelectedCellDetails()
         return
       }
 
@@ -194,6 +244,7 @@ export default function app() {
 
       if (areSetsEqual(selectedCellIds, cellsInBinIds)) {
         setSelectedCellIds(new Set())
+        clearSelectedCellDetails()
         return
       }
 
@@ -208,8 +259,9 @@ export default function app() {
 
       setDrawnPolygons([])
       setSelectedCellIds(cellsInBinIds)
+      clearSelectedCellDetails()
     },
-    [hexData, selectedCellIds, selectedIndicator, getValue]
+    [clearSelectedCellDetails, hexData, selectedCellIds, selectedIndicator, getValue]
   )
 
   const handleAnalyze = async () => {
@@ -226,6 +278,8 @@ export default function app() {
       const duckDbData = await runCalculations(client.conn, selectedIndicator)
 
       setHexData(duckDbData)
+      setSelectedCellIds(new Set())
+      clearSelectedCellDetails()
       setAvailableIndicators(buildIndicatorOptions(thresholds))
       setConfigOpen(false)
     } catch (error) {
@@ -295,21 +349,15 @@ export default function app() {
         fillColors={getIndicatorFillConfig(selectedIndicator).colors}
         selectedCellIds={selectedCellIds}
         drawnPolygons={drawnPolygons}
-        onCellClick={drawnPolygons.length > 0 ? undefined : (obj) => {
-          if (!obj) {
-            setSelectedCellIds(new Set())
-          } else {
-            setSelectedCellIds((prev) => {
-              if (prev.has(obj.h3_cell) && prev.size === 1) {
-                return new Set()
-              }
-              return new Set([obj.h3_cell])
-            })
-          }
-        }}
+        onCellClick={drawnPolygons.length > 0 ? undefined : handleMapCellClick}
         onPolygonsChange={(features) => {
           setDrawnPolygons(features)
-          if (features.length === 0) setSelectedCellIds(new Set())
+          if (features.length === 0) {
+            setSelectedCellIds(new Set())
+            clearSelectedCellDetails()
+          } else {
+            clearSelectedCellDetails()
+          }
         }}
         drawRef={drawRef}
       />
@@ -458,14 +506,63 @@ export default function app() {
         </CardContent>
       </Card>
 
-      <ComplianceStats
-        data={hexData}
-        bounds={getIndicatorFillConfig(selectedIndicator).bounds}
-        getValue={getValue}
-        onSelectBin={handleSelectBin}
-        selectedCells={selectedCellsData}
-        formatValue={fmt}
-      />
+      {(hexData.length > 0 || selectedCellDetailsCellId) && (
+        <div className="fixed bottom-10 right-4 z-10 w-[380px] space-y-2">
+          <ComplianceStats
+            data={hexData}
+            bounds={getIndicatorFillConfig(selectedIndicator).bounds}
+            getValue={getValue}
+            onSelectBin={handleSelectBin}
+            selectedCells={selectedCellsData}
+            formatValue={fmt}
+            className="bg-white shadow-lg w-full"
+          />
+
+          {selectedCellDetailsCellId && (
+            <Card className="bg-white shadow-lg w-full max-h-48 overflow-y-auto">
+              <CardContent className="p-3 space-y-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <div className="font-semibold leading-tight">Selected cell details</div>
+                    <div className="truncate font-mono text-[11px] text-muted-foreground">
+                      {selectedCellDetailsCellId}
+                    </div>
+                  </div>
+                </div>
+                {selectedCellDetailsLoading ? (
+                  <div className="text-muted-foreground">Loading details...</div>
+                ) : selectedCellDetails.length === 0 ? (
+                  <div className="text-muted-foreground">No details available.</div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {selectedCellDetails.map((detail) => (
+                      <div key={`${detail.amenity}-${detail.mode}`} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-t pt-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{detail.amenity}</div>
+                          <div className="text-[11px] text-muted-foreground">{detail.mode}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] text-muted-foreground">Comp</div>
+                          <div>{detail.compliance === null ? "No data" : fmt(detail.compliance)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] text-muted-foreground">Time</div>
+                          <div>{detail.min_travel_time === null ? "No data" : `${fmt(detail.min_travel_time)}m`}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] text-muted-foreground">Total</div>
+                          <div>{detail.n_total}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   )
 }
