@@ -42,21 +42,21 @@ export const TRAVEL_TIME_FILL_COLORS: Color[] = [
 ]
 
 export const DESTINATIONS: Destination[] = [
-  { value: "grocery", label: "Supermarket", icon: "рџ›’" },
-  { value: "pharmacy", label: "Pharmacy", icon: "рџ’Љ" },
-  { value: "atm_bank", label: "ATM/Bank", icon: "рџЏ§" },
-  { value: "post", label: "Post Office", icon: "рџ“¦" },
-  { value: "gp", label: "General Practitioner", icon: "рџ©є" },
-  { value: "restaurant", label: "Restaurant", icon: "рџЌЅпёЏ" },
-  { value: "cafe", label: "Cafe", icon: "в•" },
-  { value: "bar", label: "Bar", icon: "рџЌє" },
-  { value: "bakery", label: "Bakery", icon: "рџҐђ" },
-  { value: "school", label: "School", icon: "рџЏ«" },
-  { value: "kindergarten", label: "Kindergarten", icon: "рџ§ё" },
-  { value: "library", label: "Library", icon: "рџ“љ" },
-  { value: "sport", label: "Sports Facility", icon: "рџЏѓ" },
-  { value: "park", label: "Park", icon: "рџЊі" },
-  { value: "playground", label: "Playground", icon: "рџ›ќ" },
+  { value: "grocery", label: "Supermarket", icon: "🛒" },
+  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
+  { value: "atm_bank", label: "ATM/Bank", icon: "🏦" },
+  { value: "post", label: "Post Office", icon: "📦" },
+  { value: "gp", label: "General Practitioner", icon: "🩺" },
+  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
+  { value: "cafe", label: "Cafe", icon: "☕" },
+  { value: "bar", label: "Bar", icon: "🍺" },
+  { value: "bakery", label: "Bakery", icon: "🥐" },
+  { value: "school", label: "School", icon: "🏫" },
+  { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
+  { value: "library", label: "Library", icon: "📚" },
+  { value: "sport", label: "Sports Facility", icon: "🏃" },
+  { value: "park", label: "Park", icon: "🌳" },
+  { value: "playground", label: "Playground", icon: "🛝" },
 ]
 
 export const TRANSPORT_MODES: TransportMode[] = [

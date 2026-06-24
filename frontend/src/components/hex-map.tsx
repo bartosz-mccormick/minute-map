@@ -244,10 +244,9 @@ function DrawToolbar({
 export function HexMap({
   hexData,
   indicator,
-  getValue,
   fillBounds,
   fillColors,
-  selectedCells,
+  selectedCellIds,
   drawnPolygons,
   onCellClick,
   onPolygonsChange,
@@ -256,11 +255,11 @@ export function HexMap({
   const getColorFunction = React.useMemo(
     () =>
       colorBins({
-        attr: (d: any) => getValue(d) ?? 0,
+        attr: (d: any) => d.value ?? 0,
         domain: fillBounds.slice(1, -1),
         colors: fillColors,
       }),
-    [getValue, fillBounds, fillColors]
+    [fillBounds, fillColors]
   )
 
   const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
@@ -272,12 +271,12 @@ export function HexMap({
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: (d: any) => getValue(d) ?? 0,
+      getElevation: (d: any) => d.value ?? 0,
       getFillColor: (d: any, info: any) => {
-        if (getValue(d) === null) return NO_DATA_COLOR
+        if (d.value === null || d.value === undefined) return NO_DATA_COLOR
         const baseColor = getColorFunction(d, info)
-        if (selectedCells.length > 0) {
-          const isSelected = selectedCells.some((c) => c.h3_cell === d.h3_cell)
+        if (selectedCellIds.size > 0) {
+          const isSelected = selectedCellIds.has(d.h3_cell)
           if (!isSelected) {
             return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
           }
@@ -294,8 +293,8 @@ export function HexMap({
       opacity: 0.3,
       updateTriggers: {
         getElevation: indicator,
-        getFillColor: [indicator, selectedCells],
-        getLineColor: [selectedCells],
+        getFillColor: [indicator, selectedCellIds],
+        getLineColor: [selectedCellIds],
       },
     })
 
@@ -318,7 +317,7 @@ export function HexMap({
         : null
 
     return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
-  }, [hexData, getValue, indicator, selectedCells, getColorFunction, drawnPolygons])
+  }, [hexData, indicator, selectedCellIds, getColorFunction, drawnPolygons])
 
   const handlePolygonUpdate = React.useCallback(
     (e: DrawEvent) => {
@@ -402,7 +401,7 @@ export function HexMap({
             }
           })
 
-          const val = getValue(object)
+          const val = object.value ?? null
           if (val === null) return "No data"
           const isCompliance = indicator.includes("compliance")
           return `Compliance: ${Math.round(object.compliance_weighted_avg * 100)}%

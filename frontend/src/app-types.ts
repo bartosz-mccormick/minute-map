@@ -69,12 +69,11 @@ export type MapWithEvents = {
 export interface HexMapProps {
   hexData: any[]
   indicator: string
-  getValue: (d: any) => number | null
   fillBounds: number[]
   fillColors: Color[]
-  selectedCells: { h3_cell: string; [key: string]: unknown }[]
+  selectedCellIds: Set<string>
   drawnPolygons: GeoJSON.Feature[]
-  onCellClick?: (obj: { h3_cell: string; compliance_weighted_avg?: number } | null) => void
+  onCellClick?: (obj: { h3_cell: string; value?: number | null; compliance_weighted_avg?: number | null } | null) => void
   onPolygonsChange?: (features: GeoJSON.Feature[]) => void
   drawRef?: MutableRefObject<any>
 }

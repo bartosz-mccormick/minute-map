@@ -10,12 +10,8 @@ import type MapboxDraw from "@mapbox/mapbox-gl-draw"
 import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
-import {
-  EditableThresholdsTable,
-} from "@/components/editable-thresholds-table"
-import {
-  EditableWeightsTable,
-} from "@/components/editable-weights-table"
+import { EditableThresholdsTable } from "@/components/editable-thresholds-table"
+import { EditableWeightsTable } from "@/components/editable-weights-table"
 import { NestedDropdownSelect } from "./components/nested-dropdown-select"
 import { ComplianceStats } from "@/components/ui/compliance-stats"
 import { HexMap } from "./components/hex-map"
@@ -25,32 +21,18 @@ import {
   buildIndicatorOptions,
   DESTINATIONS,
   fmt,
-  getDestinationIcon,
-  getDestinationLabel,
   getIndicatorFillConfig,
   getIndicatorValue,
-  getModeLabel,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
   INITIAL_WEIGHTS,
   MAX_TT,
   PRESET_NESTED_OPTIONS,
   PRESETS,
-  SINGLE_DESTINATION_INDICATORS,
   TRANSPORT_MODES,
 } from "@/app-config"
 import type { NestedOption, Threshold, Weight } from "@/app-types"
-import { createDuckDb, type DuckDbClient } from "./db/duckdb/createDuckDb"
-import { createInputTables } from "./db/duckdb/createInputTables"
-import { runCalculations } from "./db/duckdb/runCalculations"
-import { setupDb } from "./db/duckdb/setupDb"
-
-const USE_FIXTURE_RESPONSE = import.meta.env.VITE_USE_FIXTURE_RESPONSE === "true"
-
-async function loadFixtureResponse(): Promise<any[]> {
-  const module = await import("./fixtures/munich-compliance-summary-response.json")
-  return module.default as any[]
-}
+import type { DuckDbClient } from "./db/duckdb/createDuckDb"
 
 const travelScenarios = [
   { value: "current", label: "Current" },
@@ -58,7 +40,18 @@ const travelScenarios = [
   // { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
 ]
 
+function logSelectionTiming(label: string, startedAt: number, details?: Record<string, unknown>) {
+  const elapsedMs = performance.now() - startedAt
+  console.info(`[selection-timing] ${label}: ${elapsedMs.toFixed(2)}ms`, details ?? {})
+}
 
+function areSetsEqual<T>(a: Set<T>, b: Set<T>) {
+  if (a.size !== b.size) return false
+  for (const value of a) {
+    if (!b.has(value)) return false
+  }
+  return true
+}
 
 export default function app() {
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
@@ -73,290 +66,173 @@ export default function app() {
     ALWAYS_AVAILABLE_INDICATORS
   )
 
-  // map data
-  const [hexData, setHexData] = React.useState<any[]>([]);
-  const [selectedCells, setSelectedCells] = React.useState<any[]>([]);
+  const [hexData, setHexData] = React.useState<any[]>([])
+  const [selectedCellIds, setSelectedCellIds] = React.useState<Set<string>>(() => new Set())
+  const selectedCellsData = React.useMemo(
+    () => hexData.filter((cell) => selectedCellIds.has(cell.h3_cell)),
+    [hexData, selectedCellIds]
+  )
 
-  // polygon drawing (only keep the last polygon)
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDraw | null>(null)
   const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
-  const [duckDbReady, setDuckDbReady] = React.useState(false)
+  const duckDbInitPromiseRef = React.useRef<Promise<DuckDbClient> | null>(null)
+  const [loading, setLoading] = React.useState(false)
 
-  // Compute which hex cells overlap with the drawn polygon
-  const polygonSelectedCells = React.useMemo(() => {
-    if (drawnPolygons.length === 0 || hexData.length === 0) return []
+  const polygonSelectedCellIds = React.useMemo(() => {
+    if (drawnPolygons.length === 0 || hexData.length === 0) return new Set<string>()
     const drawnFeature = drawnPolygons[0]
-    if (!drawnFeature || drawnFeature.geometry.type !== "Polygon") return []
+    if (!drawnFeature || drawnFeature.geometry.type !== "Polygon") return new Set<string>()
 
-    return hexData.filter((cell) => {
-      try {
-        // cellToBoundary with formatAsGeoJson=true returns [lng, lat][] pairs
-        const boundary = cellToBoundary(cell.h3_cell, true) as [number, number][]
-        const ring: [number, number][] = [...boundary, boundary[0]]
-        const hexPoly = turfPolygon([ring])
-        return booleanIntersects(hexPoly, drawnFeature)
-      } catch {
-        return false
+    const startedAt = performance.now()
+    const selectedIds = new Set<string>()
+    try {
+      for (const cell of hexData) {
+        try {
+          const boundary = cellToBoundary(cell.h3_cell, true) as [number, number][]
+          const ring: [number, number][] = [...boundary, boundary[0]]
+          const hexPoly = turfPolygon([ring])
+          if (booleanIntersects(hexPoly, drawnFeature)) {
+            selectedIds.add(cell.h3_cell)
+          }
+        } catch {
+          // Ignore malformed H3 cells.
+        }
       }
-    })
+      return selectedIds
+    } finally {
+      logSelectionTiming("polygonSelectedCellIds", startedAt, {
+        cells_total: hexData.length,
+        cells_selected: selectedIds.size,
+      })
+    }
   }, [drawnPolygons, hexData])
 
-  React.useEffect(() => {
-    if (USE_FIXTURE_RESPONSE) return
+  const ensureDuckDbClient = React.useCallback(async () => {
+    if (duckDbClientRef.current) return duckDbClientRef.current
 
-    async function initializeDuckDb() {
-      const client = await createDuckDb()
+    if (!duckDbInitPromiseRef.current) {
+      duckDbInitPromiseRef.current = (async () => {
+        const [{ createDuckDb }, { setupDb }] = await Promise.all([
+          import("./db/duckdb/createDuckDb"),
+          import("./db/duckdb/setupDb"),
+        ])
+        const client = await createDuckDb()
+        await setupDb(client)
 
-      await setupDb(client)
-
-      duckDbClientRef.current = client
-      setDuckDbReady(true)
+        duckDbClientRef.current = client
+        return client
+      })()
     }
 
-    initializeDuckDb().catch((error) => {
+    try {
+      return await duckDbInitPromiseRef.current
+    } catch (error) {
+      duckDbInitPromiseRef.current = null
       console.error("DuckDB initialization failed:", error)
-    })
+      throw error
+    }
   }, [])
 
-  // When a polygon is drawn/updated, selection becomes the cells it covers.
-  // When polygons are cleared (trash or selecting a bin), selection is updated elsewhere.
   React.useEffect(() => {
     if (drawnPolygons.length > 0) {
-      setSelectedCells(polygonSelectedCells)
+      setSelectedCellIds(polygonSelectedCellIds)
     }
-  }, [drawnPolygons, polygonSelectedCells])
+  }, [drawnPolygons, polygonSelectedCellIds])
 
   const getValue = React.useCallback(
-    (d: Record<string, unknown>) => getIndicatorValue(selectedIndicator ?? "", d),
+    (d: Record<string, unknown>) => {
+      if ("value" in d) return (d.value as number | null) ?? null
+      return getIndicatorValue(selectedIndicator ?? "", d)
+    },
     [selectedIndicator]
+  )
+
+  const handleIndicatorChange = React.useCallback(
+    async (value: string) => {
+      setSelectedIndicator(value)
+
+      if (hexData.length === 0) return
+
+      try {
+        const client = await ensureDuckDbClient()
+        const { runCalculations } = await import("./db/duckdb/runCalculations")
+        const duckDbData = await runCalculations(client.conn, value)
+        setHexData(duckDbData)
+      } catch (error) {
+        console.error("DuckDB indicator refresh failed:", error)
+      }
+    },
+    [ensureDuckDbClient, hexData.length]
   )
 
   const handleSelectBin = React.useCallback(
     (bin: { min: number; max: number } | null) => {
       if (bin === null) {
-        setSelectedCells([])
+        setSelectedCellIds(new Set())
         return
       }
+
       const bounds = getIndicatorFillConfig(selectedIndicator).bounds
       const isLastBin = bounds.length > 0 && bin.max === bounds[bounds.length - 1]
-      const inBin = (c: any) => {
-        const v = getIndicatorValue(selectedIndicator ?? "", c)
-        if (v === null) return false
-        return v >= bin.min && (v < bin.max || (isLastBin && v === bin.max))
+      const startedAt = performance.now()
+      const cellsInBinIds = new Set<string>()
+
+      for (const cell of hexData) {
+        const value = getValue(cell)
+        if (value !== null && value >= bin.min && (value < bin.max || (isLastBin && value === bin.max))) {
+          cellsInBinIds.add(cell.h3_cell)
+        }
       }
-      const cellsInBin = hexData.filter(inBin)
-      const sameSelection =
-        selectedCells.length === cellsInBin.length &&
-        cellsInBin.every((c) => selectedCells.some((s) => s.h3_cell === c.h3_cell))
-      if (sameSelection) {
-        setSelectedCells([])
+
+      logSelectionTiming("handleSelectBin.filter", startedAt, {
+        cells_total: hexData.length,
+        cells_selected: cellsInBinIds.size,
+        bin_min: bin.min,
+        bin_max: bin.max,
+      })
+
+      if (areSetsEqual(selectedCellIds, cellsInBinIds)) {
+        setSelectedCellIds(new Set())
         return
       }
-      // Discard existing selection and drawn polygon; select all cells in this bin
+
       const draw = drawRef.current
       if (draw) {
         const all = draw.getAll()
         const ids = (all.features as any[])
-          .map((f) => f.id)
+          .map((feature) => feature.id)
           .filter((id): id is string => typeof id === "string")
         if (ids.length > 0) draw.delete(ids)
       }
+
       setDrawnPolygons([])
-      setSelectedCells(cellsInBin)
+      setSelectedCellIds(cellsInBinIds)
     },
-    [hexData, drawRef, selectedCells, selectedIndicator]
+    [hexData, selectedCellIds, selectedIndicator, getValue]
   )
 
-  const POSTGREST_URL = import.meta.env.VITE_POSTGREST_URL;
-
-  const [loading, setLoading] = React.useState(false);
-  
   const handleAnalyze = async () => {
-    setLoading(true);
-
-    // Build amenity_weights from current weights state.
-    // If multiple weight entries are ever supported, later ones will override earlier ones per amenity.
-    const amenityWeights: Record<string, number> = {};
-    for (const entry of weights) {
-      for (const amenity of entry.selectedDestinations) {
-        amenityWeights[amenity] = entry.weight;
-      }
-    }
-
-
-
-
-
-    // Build amenity_thresholds array from thresholds + build mode->amenities
-    const amenityToModesSets: Record<string, Set<string>> = {}
-
-    const amenityThresholds = thresholds.map((t) => {
-      const mode = t.transportMode
-
-      for (const a of t.selectedDestinations ?? []) {
-        const set = (amenityToModesSets[a] ??= new Set<string>())
-
-        if (mode) set.add(mode)
-      }
-
-      return {
-        mode,
-        T: t.travelTime,
-        X: t.quantity,
-        amenities: t.selectedDestinations,
-      }
-    })
-
-    // Convert Set -> sorted array
-    const amenityToModes: Record<string, string[]> = Object.fromEntries(
-      Object.entries(amenityToModesSets).map(([a, set]) => [
-        a,
-        [...set].sort(),
-      ])
-    )
-
-    
-
-  
-    const payload = {
-      amenity_weights: amenityWeights,
-      amenity_thresholds: amenityThresholds,
-    };
-
-    if (USE_FIXTURE_RESPONSE) {
-      const data: any[] = await loadFixtureResponse()
-      setHexData(data)
-
-      console.log('RPC payload:', { scenario: selectedScenario, _groups: payload })
-      console.log('Fixture response loaded:', data)
-      console.log(availableIndicators)
-
-      let totalScore = 0
-      let totalPopulation = 0
-
-      data.forEach((item) => {
-        const pop = item.pop || 0
-        const compliance = item.compliance_weighted_avg || 0
-        const contribution = pop * compliance
-
-        totalScore += contribution
-        totalPopulation += pop
-      })
-
-      const weightedAverage = totalPopulation > 0 ? totalScore / totalPopulation : 0
-      console.log('total score (numerator):', totalScore)
-      console.log('total population (denominator):', totalPopulation)
-      console.log('weighted average score:', weightedAverage)
-
-      setConfigOpen(false)
-      setLoading(false)
-
-      const newIndicatorOptions: NestedOption[] = [
-        ...ALWAYS_AVAILABLE_INDICATORS,
-        ...Object.entries(amenityToModes).map(([a, modes]) => ({
-          value: a ,
-          label: getDestinationIcon(a) + getDestinationLabel(a),
-          children: modes.map((mode) => ({
-            value: a + '::' + mode,
-            label: getModeLabel(mode),
-            children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
-              value: a + '::' + mode + '::' + indicator.value,
-              label: indicator.label,
-            })),
-          })),
-        })),
-      ]
-
-      setAvailableIndicators(newIndicatorOptions)
-      return
-    }
+    setLoading(true)
 
     try {
-      const client = duckDbClientRef.current
-      if (!client || !duckDbReady) {
-        throw new Error("DuckDB is not ready yet.")
-      }
+      const client = await ensureDuckDbClient()
+      const [{ createInputTables }, { runCalculations }] = await Promise.all([
+        import("./db/duckdb/createInputTables"),
+        import("./db/duckdb/runCalculations"),
+      ])
 
       await createInputTables(client.conn, thresholds, weights)
-      const duckDbData = await runCalculations(client.conn)
+      const duckDbData = await runCalculations(client.conn, selectedIndicator)
 
       setHexData(duckDbData)
       setAvailableIndicators(buildIndicatorOptions(thresholds))
       setConfigOpen(false)
-      return
-
-      const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_by_amenity_batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Profile': 'api'
-        },
-        body: JSON.stringify({ _groups: payload }),
-      });
-  
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status} – ${text}`);
-      }
-  
-      const data: any[] = await res.json();
-      setHexData(data)
-  
-      console.log('RPC payload:', { scenario: selectedScenario, _groups: payload });
-      console.log('RPC response:', data);
-      console.log(availableIndicators)
-
-      // calculate weighted average score
-      let totalScore = 0; // numerator: total score
-      let totalPopulation = 0; // denominator: total population
-      
-      data.forEach((item) => {
-        const pop = item.pop || 0; // population
-        const compliance = item.compliance_weighted_avg || 0; // compliance score
-        
-        // calculate the contribution of each hexagon
-        const contribution = pop * compliance;
-        
-        totalScore += contribution;
-        totalPopulation += pop;
-      });
-      // calculate weighted average score
-      const weightedAverage = totalPopulation > 0 ? totalScore / totalPopulation : 0;
-      console.log('total score (numerator):', totalScore);
-      console.log('total population (denominator):', totalPopulation);
-      console.log('weighted average score:', weightedAverage);
-  
-      setConfigOpen(false);
-    } catch (e) {
-      console.error('PostgREST RPC failed:', e);
+    } catch (error) {
+      console.error("DuckDB analysis failed:", error)
       setAvailableIndicators([])
-    } finally{
-      setLoading(false);
-      
-
-      // update available indicators
-
-      const newIndicatorOptions: NestedOption[] = [
-        ...ALWAYS_AVAILABLE_INDICATORS,
-        ...Object.entries(amenityToModes).map(([a, modes]) => ({
-          value: a ,
-          label: getDestinationIcon(a) + getDestinationLabel(a),
-          children: modes.map((mode) => ({
-            value: a + '::' + mode,
-            label: getModeLabel(mode),
-            children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
-              value: a + '::' + mode + '::' + indicator.value,
-              label: indicator.label,
-            })),
-          })),
-        })),
-      ]
-
-      
-
-      setAvailableIndicators(
-        newIndicatorOptions)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -364,10 +240,10 @@ export default function app() {
     selectedScenario &&
     thresholds.length > 0 &&
     thresholds.every(
-      (t) =>
-        t.transportMode &&
-        t.travelTime > 0 &&
-        t.selectedDestinations.length > 0
+      (threshold) =>
+        threshold.transportMode &&
+        threshold.travelTime > 0 &&
+        threshold.selectedDestinations.length > 0
     )
 
   const handleReset = () => {
@@ -385,16 +261,16 @@ export default function app() {
     const preset = PRESETS[presetId]
     if (!preset) return
 
-    const nextWeights: Weight[] = DESTINATIONS.map((d) => ({
-      id: `weight-${d.value}`,
-      selectedDestinations: [d.value],
-      weight: preset.weights[d.value] ?? 1,
+    const nextWeights: Weight[] = DESTINATIONS.map((destination) => ({
+      id: `weight-${destination.value}`,
+      selectedDestinations: [destination.value],
+      weight: preset.weights[destination.value] ?? 1,
     }))
 
-    const nextThresholds: Threshold[] = DESTINATIONS.map((d) => {
-      const tPreset =
-        preset.thresholds[d.value] ?? {
-          selectedDestinations: [d.value],
+    const nextThresholds: Threshold[] = DESTINATIONS.map((destination) => {
+      const thresholdPreset =
+        preset.thresholds[destination.value] ?? {
+          selectedDestinations: [destination.value],
           quantity: 1,
           transportMode: "walk",
           travelTime: 10,
@@ -402,7 +278,7 @@ export default function app() {
 
       return {
         id: crypto.randomUUID(),
-        ...tPreset,
+        ...thresholdPreset,
       }
     })
 
@@ -412,36 +288,32 @@ export default function app() {
 
   return (
     <div className="h-screen w-full relative bg-gray-50">
-
       <HexMap
         hexData={hexData}
         indicator={selectedIndicator}
-        getValue={getValue}
         fillBounds={getIndicatorFillConfig(selectedIndicator).bounds}
         fillColors={getIndicatorFillConfig(selectedIndicator).colors}
-        selectedCells={selectedCells}
+        selectedCellIds={selectedCellIds}
         drawnPolygons={drawnPolygons}
         onCellClick={drawnPolygons.length > 0 ? undefined : (obj) => {
           if (!obj) {
-            setSelectedCells([])
+            setSelectedCellIds(new Set())
           } else {
-            setSelectedCells((prev) => {
-              const exists = prev.some((c: any) => c.h3_cell === obj.h3_cell)
-              if (exists && prev.length === 1) {
-                return []
+            setSelectedCellIds((prev) => {
+              if (prev.has(obj.h3_cell) && prev.size === 1) {
+                return new Set()
               }
-              return [obj]
+              return new Set([obj.h3_cell])
             })
           }
         }}
         onPolygonsChange={(features) => {
           setDrawnPolygons(features)
-          if (features.length === 0) setSelectedCells([])
+          if (features.length === 0) setSelectedCellIds(new Set())
         }}
         drawRef={drawRef}
       />
 
-      {/* Config Button */}
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
         <DialogTrigger asChild>
           <Button size="lg" className="fixed top-4 right-4 z-10 shadow-lg">
@@ -455,7 +327,6 @@ export default function app() {
           </DialogHeader>
 
           <div className="space-y-6 py-4">
-            {/* Travel Scenario Selection */}
             <Card>
               <CardHeader>
                 <CardTitle>Travel Time Scenario</CardTitle>
@@ -505,7 +376,6 @@ export default function app() {
               </CardContent>
             </Card>
 
-            {/* Editable Weights Table */}
             <Card>
               <CardHeader>
                 <CardTitle>Weights</CardTitle>
@@ -523,7 +393,6 @@ export default function app() {
               </CardContent>
             </Card>
 
-            {/* Editable Thresholds Table */}
             <Card>
               <CardHeader>
                 <CardTitle>Compliance Thresholds</CardTitle>
@@ -543,11 +412,10 @@ export default function app() {
               </CardContent>
             </Card>
 
-            {/* Action Buttons */}
             <div className="flex justify-center gap-4 pt-4">
               <Button
                 onClick={handleAnalyze}
-                disabled={!isFormValid || loading || (!USE_FIXTURE_RESPONSE && !duckDbReady)}
+                disabled={!isFormValid || loading}
                 size="lg"
                 className="px-8 min-w-[180px]"
                 aria-busy={loading}
@@ -575,30 +443,27 @@ export default function app() {
 
       <Card className="fixed bottom-4 left-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2">
         <CardContent className="p-3 space-y-3 text-sm">
-
           <NestedDropdownSelect
             options={availableIndicators}
             value={selectedIndicator}
-            onValueChange={setSelectedIndicator}
+            onValueChange={handleIndicatorChange}
             placeholder="Select indicator"
             showPathInLabel
             pathSeparator=": "
-           />
+          />
           <LegendBands
             bounds={getIndicatorFillConfig(selectedIndicator).bounds}
             colors={getIndicatorFillConfig(selectedIndicator).colors}
           />
         </CardContent>
-        {/* {selectedIndicator.split("::")[0]} */}
       </Card>
 
-      {/* Compliance Statistics */}
       <ComplianceStats
         data={hexData}
         bounds={getIndicatorFillConfig(selectedIndicator).bounds}
         getValue={getValue}
         onSelectBin={handleSelectBin}
-        selectedCells={selectedCells}
+        selectedCells={selectedCellsData}
         formatValue={fmt}
       />
     </div>
