@@ -22,6 +22,7 @@ import { HexMap } from "./components/hex-map"
 import { LegendBands } from "./components/legend-bands"
 import {
   ALWAYS_AVAILABLE_INDICATORS,
+  buildIndicatorOptions,
   DESTINATIONS,
   fmt,
   getDestinationIcon,
@@ -39,6 +40,10 @@ import {
   TRANSPORT_MODES,
 } from "@/app-config"
 import type { NestedOption, Threshold, Weight } from "@/app-types"
+import { createDuckDb, type DuckDbClient } from "./db/duckdb/createDuckDb"
+import { createInputTables } from "./db/duckdb/createInputTables"
+import { runCalculations } from "./db/duckdb/runCalculations"
+import { setupDb } from "./db/duckdb/setupDb"
 
 const USE_FIXTURE_RESPONSE = import.meta.env.VITE_USE_FIXTURE_RESPONSE === "true"
 
@@ -75,6 +80,8 @@ export default function app() {
   // polygon drawing (only keep the last polygon)
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDraw | null>(null)
+  const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
+  const [duckDbReady, setDuckDbReady] = React.useState(false)
 
   // Compute which hex cells overlap with the drawn polygon
   const polygonSelectedCells = React.useMemo(() => {
@@ -94,6 +101,23 @@ export default function app() {
       }
     })
   }, [drawnPolygons, hexData])
+
+  React.useEffect(() => {
+    if (USE_FIXTURE_RESPONSE) return
+
+    async function initializeDuckDb() {
+      const client = await createDuckDb()
+
+      await setupDb(client)
+
+      duckDbClientRef.current = client
+      setDuckDbReady(true)
+    }
+
+    initializeDuckDb().catch((error) => {
+      console.error("DuckDB initialization failed:", error)
+    })
+  }, [])
 
   // When a polygon is drawn/updated, selection becomes the cells it covers.
   // When polygons are cleared (trash or selecting a bin), selection is updated elsewhere.
@@ -249,6 +273,19 @@ export default function app() {
     }
 
     try {
+      const client = duckDbClientRef.current
+      if (!client || !duckDbReady) {
+        throw new Error("DuckDB is not ready yet.")
+      }
+
+      await createInputTables(client.conn, thresholds, weights)
+      const duckDbData = await runCalculations(client.conn)
+
+      setHexData(duckDbData)
+      setAvailableIndicators(buildIndicatorOptions(thresholds))
+      setConfigOpen(false)
+      return
+
       const res = await fetch(`${POSTGREST_URL}/rpc/get_compliance_summary_by_amenity_batch`, {
         method: 'POST',
         headers: {
@@ -510,7 +547,7 @@ export default function app() {
             <div className="flex justify-center gap-4 pt-4">
               <Button
                 onClick={handleAnalyze}
-                disabled={!isFormValid || loading}
+                disabled={!isFormValid || loading || (!USE_FIXTURE_RESPONSE && !duckDbReady)}
                 size="lg"
                 className="px-8 min-w-[180px]"
                 aria-busy={loading}
@@ -567,4 +604,3 @@ export default function app() {
     </div>
   )
 }
-

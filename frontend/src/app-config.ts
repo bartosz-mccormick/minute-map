@@ -145,3 +145,33 @@ export function getDestinationIcon(value: string) {
 export function getModeLabel(value: string) {
   return TRANSPORT_MODES.find((d) => d.value === value)?.label || ""
 }
+
+export function buildIndicatorOptions(thresholds: Threshold[]): NestedOption[] {
+  const amenityModes: Record<string, Set<string>> = {}
+
+  for (const threshold of thresholds) {
+    for (const amenity of threshold.selectedDestinations) {
+      if (!amenityModes[amenity]) {
+        amenityModes[amenity] = new Set()
+      }
+
+      amenityModes[amenity].add(threshold.transportMode)
+    }
+  }
+
+  return [
+    ...ALWAYS_AVAILABLE_INDICATORS,
+    ...Object.entries(amenityModes).map(([amenity, modes]) => ({
+      value: amenity,
+      label: getDestinationIcon(amenity) + getDestinationLabel(amenity),
+      children: [...modes].sort().map((mode) => ({
+        value: `${amenity}::${mode}`,
+        label: getModeLabel(mode),
+        children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
+          value: `${amenity}::${mode}::${indicator.value}`,
+          label: indicator.label,
+        })),
+      })),
+    })),
+  ]
+}
