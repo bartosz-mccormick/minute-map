@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import type MapboxDraw from "@mapbox/mapbox-gl-draw"
 import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
@@ -16,6 +15,7 @@ import { NestedDropdownSelect } from "./components/nested-dropdown-select"
 import { ComplianceStats } from "@/components/ui/compliance-stats"
 import { HexMap } from "./components/hex-map"
 import { LegendBands } from "./components/legend-bands"
+import { PoiPreview } from "./components/poi_preview"
 import {
   ALWAYS_AVAILABLE_INDICATORS,
   buildIndicatorOptions,
@@ -30,7 +30,7 @@ import {
   PRESETS,
   TRANSPORT_MODES,
 } from "@/app-config"
-import type { NestedOption, Threshold, Weight } from "@/app-types"
+import type { HexMapDeckObject, MapboxDrawApi, NestedOption, Threshold, Weight } from "@/app-types"
 import type { DuckDbClient } from "./db/duckdb/createDuckDb"
 import type { CellDetailRow } from "./db/duckdb/runCalculations"
 
@@ -62,6 +62,7 @@ export default function app() {
   const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
   const [selectedIndicator, setSelectedIndicator] = React.useState("compliance_weighted_avg")
+  const [gridTransparency, setGridTransparency] = React.useState(65)
   const [availableIndicators, setAvailableIndicators] = React.useState<NestedOption[]>(
     ALWAYS_AVAILABLE_INDICATORS
   )
@@ -77,7 +78,7 @@ export default function app() {
   )
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
-  const drawRef = React.useRef<MapboxDraw | null>(null)
+  const drawRef = React.useRef<MapboxDrawApi | null>(null)
   const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
   const duckDbInitPromiseRef = React.useRef<Promise<DuckDbClient> | null>(null)
   const [loading, setLoading] = React.useState(false)
@@ -178,7 +179,7 @@ export default function app() {
   )
 
   const handleMapCellClick = React.useCallback(
-    (obj: { h3_cell: string } | null) => {
+    (obj: HexMapDeckObject | null) => {
       if (!obj) {
         setSelectedCellIds(new Set())
         clearSelectedCellDetails()
@@ -300,6 +301,15 @@ export default function app() {
         threshold.selectedDestinations.length > 0
     )
 
+  const leftPanelLayoutStyle = {
+    "--left-panel-left": "0.75rem",
+    "--left-panel-gap": "0.75rem",
+    "--left-panel-top": "11.0rem",
+    "--grid-transparency-height": "5.75rem",
+    "--poi-legend-top": "calc(var(--left-panel-top) + var(--grid-transparency-height) + var(--left-panel-gap))",
+    "--bottom-left-panel-reserve": "14.5rem",
+  } as React.CSSProperties
+
   const handleReset = () => {
     setSelectedScenario(INITIAL_SCENARIO)
     setSelectedPreset("custom")
@@ -341,12 +351,13 @@ export default function app() {
   }
 
   return (
-    <div className="h-screen w-full relative bg-gray-50">
+    <div className="h-screen w-full relative bg-gray-50" style={leftPanelLayoutStyle}>
       <HexMap
         hexData={hexData}
         indicator={selectedIndicator}
         fillBounds={getIndicatorFillConfig(selectedIndicator).bounds}
         fillColors={getIndicatorFillConfig(selectedIndicator).colors}
+        gridOpacity={(100 - gridTransparency) / 100}
         selectedCellIds={selectedCellIds}
         drawnPolygons={drawnPolygons}
         onCellClick={drawnPolygons.length > 0 ? undefined : handleMapCellClick}
@@ -360,7 +371,9 @@ export default function app() {
           }
         }}
         drawRef={drawRef}
-      />
+      >
+        <PoiPreview />
+      </HexMap>
 
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
         <DialogTrigger asChild>
@@ -489,7 +502,44 @@ export default function app() {
         </DialogContent>
       </Dialog>
 
-      <Card className="fixed bottom-4 left-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2">
+      <div
+        className="fixed z-10 w-72 rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
+        style={{ left: "var(--left-panel-left)", top: "var(--left-panel-top)" }}
+      >
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="text-sm font-semibold leading-tight">Adjust grid transparency</div>
+          <div className="shrink-0 text-2xl font-semibold tabular-nums leading-none">
+            {gridTransparency}%
+          </div>
+        </div>
+        <div
+          className="grid h-9 items-end justify-items-center gap-0.5"
+          style={{ gridTemplateColumns: "repeat(20, minmax(0, 1fr))" }}
+          role="slider"
+          aria-label="Adjust grid transparency"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={gridTransparency}
+        >
+          {Array.from({ length: 20 }, (_, index) => {
+            const value = (index + 1) * 5
+            const active = value <= gridTransparency
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setGridTransparency(value)}
+                className={`h-8 w-2 transition-colors ${
+                  active ? "bg-gray-800 hover:bg-gray-700" : "bg-gray-300 hover:bg-gray-400"
+                }`}
+                aria-label={`Set grid transparency to ${value}%`}
+              />
+            )
+          })}
+        </div>
+      </div>
+
+      <Card className="fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2" style={{ left: "var(--left-panel-left)" }}>
         <CardContent className="p-3 space-y-3 text-sm">
           <NestedDropdownSelect
             options={availableIndicators}

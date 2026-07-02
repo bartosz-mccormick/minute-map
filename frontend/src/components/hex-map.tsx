@@ -9,7 +9,14 @@ import { colorBins } from "@deck.gl/carto"
 import MapboxDraw from "@mapbox/mapbox-gl-draw"
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css"
 import FreehandMode from "mapbox-gl-draw-freehand-mode"
-import type { DrawEvent, HexMapProps, MapWithEvents } from "@/app-types"
+import type {
+  DrawEvent,
+  HexMapCell,
+  HexMapDeckObject,
+  HexMapProps,
+  MapWithEvents,
+  MapboxDrawRef,
+} from "@/app-types"
 import { INITIAL_VIEW_STATE, MAP_STYLE } from "@/app-config"
 
 const DRAW_STYLES = [
@@ -82,7 +89,9 @@ const DRAW_STYLES = [
   },
 ] as unknown as MapboxDraw.MapboxDrawOptions["styles"]
 
-function DeckGLOverlay(props: any) {
+type DeckGLOverlayProps = ConstructorParameters<typeof DeckOverlay>[0]
+
+function DeckGLOverlay(props: DeckGLOverlayProps) {
   const overlay = useControl(() => new DeckOverlay(props))
   overlay.setProps(props)
   return null
@@ -93,7 +102,7 @@ function DrawControl({
   onUpdate,
   onDelete,
 }: {
-  drawRef?: React.MutableRefObject<MapboxDraw | null>
+  drawRef?: MapboxDrawRef
   onUpdate: (event: DrawEvent) => void
   onDelete: (event: DrawEvent) => void
 }) {
@@ -150,7 +159,7 @@ function DrawToolbar({
   drawRef,
   onClearPolygons,
 }: {
-  drawRef: React.MutableRefObject<MapboxDraw | null>
+  drawRef?: MapboxDrawRef
   onClearPolygons?: () => void
 }) {
   const [isDrawing, setIsDrawing] = React.useState(false)
@@ -168,7 +177,7 @@ function DrawToolbar({
   }, [map])
 
   const handleToggleDraw = React.useCallback(() => {
-    const draw = drawRef.current
+    const draw = drawRef?.current
     if (!draw) return
 
     if (draw.getMode() === "draw_polygon") {
@@ -188,7 +197,7 @@ function DrawToolbar({
   }, [drawRef, onClearPolygons])
 
   const handleDelete = React.useCallback(() => {
-    const draw = drawRef.current
+    const draw = drawRef?.current
     if (!draw) return
     const all = draw.getAll()
     const ids = (all.features as any[])
@@ -240,16 +249,18 @@ export function HexMap({
   indicator,
   fillBounds,
   fillColors,
+  gridOpacity = 0.3,
   selectedCellIds,
   drawnPolygons,
   onCellClick,
   onPolygonsChange,
   drawRef,
+  children,
 }: HexMapProps) {
   const getColorFunction = React.useMemo(
     () =>
       colorBins({
-        attr: (row: any) => row.value ?? 0,
+        attr: (row: HexMapCell) => row.value ?? 0,
         domain: fillBounds.slice(1, -1),
         colors: fillColors,
       }),
@@ -265,10 +276,10 @@ export function HexMap({
       elevationScale: 1000,
       extruded: false,
       filled: true,
-      getElevation: (row: any) => row.value ?? 0,
-      getFillColor: (row: any, info: any) => {
+      getElevation: (row: HexMapCell) => row.value ?? 0,
+      getFillColor: (row: HexMapCell, info: unknown) => {
         if (row.value === null || row.value === undefined) return noDataColor
-        const baseColor = getColorFunction(row, info)
+        const baseColor = getColorFunction(row, info as never)
         if (selectedCellIds.size > 0 && !selectedCellIds.has(row.h3_cell)) {
           return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
         }
@@ -276,10 +287,10 @@ export function HexMap({
       },
       getLineColor: () => [255, 255, 255, 255] as [number, number, number, number],
       lineWidthMinPixels: 1,
-      getHexagon: (row: any) => row.h3_cell,
+      getHexagon: (row: HexMapCell) => row.h3_cell,
       wireframe: false,
       pickable: true,
-      opacity: 0.3,
+      opacity: gridOpacity,
       updateTriggers: {
         getElevation: indicator,
         getFillColor: [indicator, selectedCellIds],
@@ -289,14 +300,14 @@ export function HexMap({
 
     const polygonFeatures = (drawnPolygons ?? []).filter(
       (feature: GeoJSON.Feature) => feature.geometry?.type === "Polygon"
-    )
+    ) as GeoJSON.Feature<GeoJSON.Polygon>[]
 
     const polygonLayer =
       polygonFeatures.length > 0
         ? new PolygonLayer({
             id: "DrawnPolygonLayer",
             data: polygonFeatures,
-            getPolygon: (feature: any) => feature.geometry?.coordinates ?? [],
+            getPolygon: (feature) => feature.geometry.coordinates,
             getFillColor: [210, 12, 12, 0],
             getLineColor: [210, 12, 12, 255],
             getLineWidth: 2,
@@ -306,7 +317,7 @@ export function HexMap({
         : null
 
     return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
-  }, [hexData, indicator, selectedCellIds, getColorFunction, drawnPolygons])
+  }, [hexData, indicator, selectedCellIds, getColorFunction, drawnPolygons, gridOpacity])
 
   const handlePolygonUpdate = React.useCallback(
     (event: DrawEvent) => {
@@ -320,7 +331,7 @@ export function HexMap({
         if (features.length > 1) {
           const idsToDelete = features
             .slice(0, -1)
-            .map((feature: any) => feature.id)
+            .map((feature) => feature.id)
             .filter((id): id is string => typeof id === "string")
           if (idsToDelete.length > 0) {
             draw.delete(idsToDelete)
@@ -354,10 +365,12 @@ export function HexMap({
     >
       <DeckGLOverlay
         layers={layers}
-        onClick={({ object }: any) => {
-          onCellClick?.(object ?? null)
+        onClick={(info) => {
+          const object = (info as { object?: HexMapDeckObject | null }).object ?? null
+          onCellClick?.(object)
         }}
-        getTooltip={({ object }: any) => {
+        getTooltip={(info) => {
+          const object = (info as { object?: HexMapDeckObject | null }).object ?? null
           if (!object) return null
           const value = object.value ?? null
           if (value === null) return "No data"
@@ -375,13 +388,14 @@ export function HexMap({
         }}
       />
       <NavigationControl position="top-left" />
+      {children}
       <DrawControl
         drawRef={drawRef}
         onUpdate={handlePolygonUpdate}
         onDelete={handlePolygonDelete}
       />
       <DrawToolbar
-        drawRef={drawRef as React.MutableRefObject<MapboxDraw | null>}
+        drawRef={drawRef}
         onClearPolygons={() => onPolygonsChange?.([])}
       />
     </Map>

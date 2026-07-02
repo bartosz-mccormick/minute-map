@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react"
+import type { MutableRefObject, ReactNode } from "react"
 
 export type Color = [number, number, number]
 
@@ -61,21 +61,50 @@ export interface EditableThresholdsTableProps {
 
 export type DrawEvent = { features: GeoJSON.Feature[] }
 
+export interface HexMapCell {
+  h3_cell: string
+  value?: number | null
+  compliance_weighted_avg?: number | null
+  [key: string]: unknown
+}
+
+export interface HexMapDeckObject {
+  h3_cell: string
+  value?: number | null
+  compliance_weighted_avg?: number | null
+  [key: string]: unknown
+}
+
+export type MapboxDrawAll = {
+  features: GeoJSON.Feature[]
+}
+
+export interface MapboxDrawApi {
+  getMode: () => string
+  changeMode: (mode: string) => void
+  getAll: () => MapboxDrawAll
+  delete: (ids: string[]) => void
+}
+
+export type MapboxDrawRef = MutableRefObject<MapboxDrawApi | null>
+
 export type MapWithEvents = {
   on: (event: string, fn: (...args: unknown[]) => void) => void
   off: (event: string, fn: (...args: unknown[]) => void) => void
 }
 
 export interface HexMapProps {
-  hexData: any[]
+  hexData: HexMapCell[]
   indicator: string
   fillBounds: number[]
   fillColors: Color[]
+  gridOpacity?: number
   selectedCellIds: Set<string>
   drawnPolygons: GeoJSON.Feature[]
-  onCellClick?: (obj: { h3_cell: string; value?: number | null; compliance_weighted_avg?: number | null } | null) => void
+  onCellClick?: (obj: HexMapDeckObject | null) => void
   onPolygonsChange?: (features: GeoJSON.Feature[]) => void
-  drawRef?: MutableRefObject<any>
+  drawRef?: MapboxDrawRef
+  children?: ReactNode
 }
 
 export interface LegendBandsProps {
