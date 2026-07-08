@@ -17,6 +17,15 @@ import { HexMap } from "./components/hex-map"
 import { LegendBands } from "./components/legend-bands"
 import { PoiPreview } from "./components/poi_preview"
 import {
+  MAP_OVERLAY_BUTTON_TEXT_CLASS,
+  MAP_OVERLAY_BODY_MAIN_CLASS,
+  MAP_OVERLAY_BODY_SMALL_CLASS,
+  MAP_OVERLAY_DIALOG_TITLE_CLASS,
+  MAP_OVERLAY_META_TEXT_CLASS,
+  MAP_OVERLAY_PANEL_TITLE_CLASS,
+  MAP_OVERLAY_SECTION_TITLE_CLASS,
+} from "@/lib/map-overlay-styles"
+import {
   ALWAYS_AVAILABLE_INDICATORS,
   buildIndicatorOptions,
   DESTINATIONS,
@@ -379,30 +388,34 @@ export default function app() {
         <DialogTrigger asChild>
           <Button size="lg" className="fixed top-4 right-4 z-10 shadow-lg">
             <Settings className="h-5 w-5 mr-2" />
-            Configure
+            <span className={MAP_OVERLAY_BUTTON_TEXT_CLASS}>Configure</span>
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>X-Minute City Analysis Configuration</DialogTitle>
+            <DialogTitle className={MAP_OVERLAY_DIALOG_TITLE_CLASS}>X-Minute City Analysis Configuration</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className={`space-y-6 py-4 ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
             <Card>
               <CardHeader>
-                <CardTitle>Travel Time Scenario</CardTitle>
+                <CardTitle className={MAP_OVERLAY_SECTION_TITLE_CLASS}>Travel Time Scenario</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Scenario</div>
+                    <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Scenario</div>
                     <Select value={selectedScenario} onValueChange={setSelectedScenario}>
-                      <SelectTrigger>
+                      <SelectTrigger className={MAP_OVERLAY_BODY_MAIN_CLASS}>
                         <SelectValue placeholder="Choose a travel scenario" />
                       </SelectTrigger>
                       <SelectContent>
                         {travelScenarios.map((scenario) => (
-                          <SelectItem key={scenario.value} value={scenario.value}>
+                          <SelectItem
+                            key={scenario.value}
+                            value={scenario.value}
+                            className={MAP_OVERLAY_BODY_MAIN_CLASS}
+                          >
                             {scenario.label}
                           </SelectItem>
                         ))}
@@ -411,10 +424,12 @@ export default function app() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Preference Set</div>
+                    <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Preference Set</div>
                     <NestedDropdownSelect
                       options={PRESET_NESTED_OPTIONS}
                       value={selectedPreset}
+                      className={MAP_OVERLAY_BODY_MAIN_CLASS}
+                      textClassName={MAP_OVERLAY_BODY_MAIN_CLASS}
                       onValueChange={(value) => {
                         if (value === "custom") {
                           setSelectedPreset("custom")
@@ -429,7 +444,7 @@ export default function app() {
                       showPathInLabel={true}
                       pathSeparator=" › "
                     />
-                    <div className="text-xs text-muted-foreground">
+                    <div className={MAP_OVERLAY_BODY_MAIN_CLASS}>
                       Selecting a preset will overwrite weights and thresholds.
                     </div>
                   </div>
@@ -439,7 +454,7 @@ export default function app() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Weights</CardTitle>
+                <CardTitle className={MAP_OVERLAY_SECTION_TITLE_CLASS}>Weights</CardTitle>
               </CardHeader>
               <CardContent>
                 <EditableWeightsTable
@@ -456,7 +471,7 @@ export default function app() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Compliance Thresholds</CardTitle>
+                <CardTitle className={MAP_OVERLAY_SECTION_TITLE_CLASS}>Compliance Thresholds</CardTitle>
               </CardHeader>
               <CardContent>
                 <EditableThresholdsTable
@@ -484,10 +499,10 @@ export default function app() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Please wait
+                    <span className={MAP_OVERLAY_BUTTON_TEXT_CLASS}>Please wait</span>
                   </>
                 ) : (
-                  "Run Analysis"
+                  <span className={MAP_OVERLAY_BUTTON_TEXT_CLASS}>Run Analysis</span>
                 )}
               </Button>
               <Button
@@ -495,7 +510,7 @@ export default function app() {
                 size="lg"
                 onClick={handleReset}
               >
-                Reset Configuration
+                <span className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Reset Configuration</span>
               </Button>
             </div>
           </div>
@@ -507,8 +522,8 @@ export default function app() {
         style={{ left: "var(--left-panel-left)", top: "var(--left-panel-top)" }}
       >
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold leading-tight">Adjust grid transparency</div>
-          <div className="shrink-0 text-2xl font-semibold tabular-nums leading-none">
+          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Adjust grid transparency</div>
+          <div className={`shrink-0 tabular-nums ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
             {gridTransparency}%
           </div>
         </div>
@@ -540,7 +555,7 @@ export default function app() {
       </div>
 
       <Card className="fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2" style={{ left: "var(--left-panel-left)" }}>
-        <CardContent className="p-3 space-y-3 text-sm">
+        <CardContent className="p-3 space-y-3">
           <NestedDropdownSelect
             options={availableIndicators}
             value={selectedIndicator}
@@ -548,6 +563,8 @@ export default function app() {
             placeholder="Select indicator"
             showPathInLabel
             pathSeparator=": "
+            className={MAP_OVERLAY_PANEL_TITLE_CLASS}
+            textClassName={MAP_OVERLAY_PANEL_TITLE_CLASS}
           />
           <LegendBands
             bounds={getIndicatorFillConfig(selectedIndicator).bounds}
@@ -570,39 +587,39 @@ export default function app() {
 
           {selectedCellDetailsCellId && (
             <Card className="bg-white shadow-lg w-full max-h-48 overflow-y-auto">
-              <CardContent className="p-3 space-y-2 text-xs">
+              <CardContent className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Info className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <div className="font-semibold leading-tight">Selected cell details</div>
-                    <div className="truncate font-mono text-[11px] text-muted-foreground">
+                    <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Selected cell details</div>
+                    <div className={`truncate font-mono ${MAP_OVERLAY_META_TEXT_CLASS}`}>
                       {selectedCellDetailsCellId}
                     </div>
                   </div>
                 </div>
                 {selectedCellDetailsLoading ? (
-                  <div className="text-muted-foreground">Loading details...</div>
+                  <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading details...</div>
                 ) : selectedCellDetails.length === 0 ? (
-                  <div className="text-muted-foreground">No details available.</div>
+                  <div className={MAP_OVERLAY_BODY_SMALL_CLASS}>No details available.</div>
                 ) : (
                   <div className="grid grid-cols-1 gap-2">
                     {selectedCellDetails.map((detail) => (
                       <div key={`${detail.amenity}-${detail.mode}`} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 border-t pt-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{detail.amenity}</div>
-                          <div className="text-[11px] text-muted-foreground">{detail.mode}</div>
+                          <div className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>{detail.amenity}</div>
+                          <div className={MAP_OVERLAY_META_TEXT_CLASS}>{detail.mode}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] text-muted-foreground">Comp</div>
-                          <div>{detail.compliance === null ? "No data" : fmt(detail.compliance)}</div>
+                          <div className={MAP_OVERLAY_META_TEXT_CLASS}>Comp</div>
+                          <div className={MAP_OVERLAY_BODY_SMALL_CLASS}>{detail.compliance === null ? "No data" : fmt(detail.compliance)}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] text-muted-foreground">Time</div>
-                          <div>{detail.min_travel_time === null ? "No data" : `${fmt(detail.min_travel_time)}m`}</div>
+                          <div className={MAP_OVERLAY_META_TEXT_CLASS}>Time</div>
+                          <div className={MAP_OVERLAY_BODY_SMALL_CLASS}>{detail.min_travel_time === null ? "No data" : `${fmt(detail.min_travel_time)}m`}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] text-muted-foreground">Total</div>
-                          <div>{detail.n_total}</div>
+                          <div className={MAP_OVERLAY_META_TEXT_CLASS}>Total</div>
+                          <div className={MAP_OVERLAY_BODY_SMALL_CLASS}>{detail.n_total}</div>
                         </div>
                       </div>
                     ))}

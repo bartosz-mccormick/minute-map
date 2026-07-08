@@ -25,6 +25,12 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { useControl, useMap } from "react-map-gl/maplibre"
+import {
+  MAP_OVERLAY_BUTTON_TEXT_CLASS,
+  MAP_OVERLAY_BODY_MAIN_CLASS,
+  MAP_OVERLAY_META_TEXT_CLASS,
+  MAP_OVERLAY_PANEL_TITLE_CLASS,
+} from "@/lib/map-overlay-styles"
 
 type PoiCategory =
   | "supermarket"
@@ -537,21 +543,23 @@ export function PoiPreview() {
       />
       {hoveredPoiTooltip ? (
         <div
-          className="pointer-events-none fixed z-20 rounded-sm bg-slate-800/95 px-3 py-2 text-sm text-slate-100 shadow-lg"
+          className="pointer-events-none fixed z-20 rounded-sm bg-slate-800/95 px-3 py-2 shadow-lg"
           style={{
             left: hoveredPoiTooltip.x - 10,
             top: hoveredPoiTooltip.y - 10,
             transform: "translate(-100%, -100%)",
           }}
         >
-          <div>{hoveredPoiTooltip.title}</div>
+          <div className={MAP_OVERLAY_BUTTON_TEXT_CLASS}>{hoveredPoiTooltip.title}</div>
           {hoveredPoiTooltip.lines.map((line) => (
-            <div key={line}>{line}</div>
+            <div key={line} className={MAP_OVERLAY_BUTTON_TEXT_CLASS}>
+              {line}
+            </div>
           ))}
         </div>
       ) : null}
       <div
-        className="fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 text-sm shadow-lg backdrop-blur"
+        className="fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
         style={{
           left: "var(--left-panel-left)",
           top: "var(--poi-legend-top)",
@@ -562,9 +570,9 @@ export function PoiPreview() {
         aria-label="POI legend"
       >
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="font-semibold">Points of interest</div>
+          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Points of interest</div>
           <div className="flex items-center gap-1">
-            {loading ? <div className="text-[11px] text-muted-foreground">Loading</div> : null}
+            {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
             <button
               type="button"
               onClick={() => setLegendOpen((open) => !open)}
@@ -576,7 +584,7 @@ export function PoiPreview() {
           </div>
         </div>
         {error ? (
-          <div className="text-[11px] text-red-600">{error}</div>
+          <div className={MAP_OVERLAY_META_TEXT_CLASS.replace("text-muted-foreground", "text-red-600")}>{error}</div>
         ) : (
           <div className="grid gap-1">
             <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-100">
@@ -586,7 +594,7 @@ export function PoiPreview() {
                 onChange={handleToggleAllCategories}
                 className="h-3.5 w-3.5"
               />
-              <span className="font-semibold">Select all</span>
+              <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>Select all</span>
             </label>
 
             {legendOpen ? (
@@ -608,7 +616,7 @@ export function PoiPreview() {
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-black bg-white">
                           <category.Icon size={13} strokeWidth={1.9} />
                         </span>
-                        <span className={enabled ? "truncate font-normal" : "truncate font-normal text-muted-foreground"}>
+                        <span className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
                           {category.label}
                         </span>
                       </label>

@@ -2,6 +2,7 @@ import * as React from "react"
 import { ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { NestedOption } from "@/app-types"
+import { MAP_OVERLAY_PANEL_TITLE_CLASS } from "@/lib/map-overlay-styles"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,7 @@ type NestedDropdownSelectProps = {
   placeholder?: string
   className?: string
   contentClassName?: string
+  textClassName?: string
 
   /** Default: true. If false, label shows only the selected node label (no path). */
   showPathInLabel?: boolean
@@ -52,6 +54,7 @@ export function NestedDropdownSelect({
   placeholder = "Select option",
   className,
   contentClassName,
+  textClassName = MAP_OVERLAY_PANEL_TITLE_CLASS,
   showPathInLabel = true,
   pathSeparator = " / ",
   widthClassName = "w-[280px]",
@@ -64,15 +67,15 @@ export function NestedDropdownSelect({
   }, [options, value])
 
   const displayLabelElement = React.useMemo(() => {
-    if (!value || !selectedPath?.length) return <span>{placeholder}</span>
+    if (!value || !selectedPath?.length) return <span className={textClassName}>{placeholder}</span>
     if (!showPathInLabel) {
-      return <span>{selectedPath[selectedPath.length - 1]?.label ?? placeholder}</span>
+      return <span className={textClassName}>{selectedPath[selectedPath.length - 1]?.label ?? placeholder}</span>
     }
     const labels = selectedPath.map((n) => n.label)
     // If pathSeparator contains ":", wrap after each colon
     if (pathSeparator.includes(":")) {
       return (
-        <span className="whitespace-pre-line text-left">
+        <span className={`whitespace-pre-line text-left ${textClassName}`}>
           {labels.map((label, idx) => (
             <React.Fragment key={idx}>
               {idx > 0 && ":\n"}
@@ -82,8 +85,8 @@ export function NestedDropdownSelect({
         </span>
       )
     }
-    return <span>{labels.join(pathSeparator)}</span>
-  }, [value, selectedPath, placeholder, showPathInLabel, pathSeparator])
+    return <span className={textClassName}>{labels.join(pathSeparator)}</span>
+  }, [value, selectedPath, placeholder, showPathInLabel, pathSeparator, textClassName])
 
   const handleSelect = (nextValue: string) => {
     onValueChange(nextValue)
@@ -98,6 +101,7 @@ export function NestedDropdownSelect({
       return (
         <DropdownMenuSub key={opt.value}>
           <DropdownMenuSubTrigger
+            className={textClassName}
             disabled={opt.disabled}
             // If selectableWhenHasChildren is true, allow click to select (and still provide submenu via hover/keyboard)
             onClick={(e) => {
@@ -120,6 +124,7 @@ export function NestedDropdownSelect({
     return (
       <DropdownMenuItem
         key={opt.value}
+        className={textClassName}
         disabled={opt.disabled}
         onClick={() => handleSelect(opt.value)}
       >

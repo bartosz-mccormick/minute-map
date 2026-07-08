@@ -1,6 +1,12 @@
 import * as React from "react"
 import ReactECharts from "echarts-for-react"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  MAP_OVERLAY_BODY_SMALL_CLASS,
+  MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
+  MAP_OVERLAY_META_TEXT_CLASS,
+  MAP_OVERLAY_PANEL_TITLE_CLASS,
+} from "@/lib/map-overlay-styles"
 
 type HexItem = {
   pop?: number
@@ -99,14 +105,20 @@ export function ComplianceStats({
       xAxis: {
         type: "category",
         data: bins.map((b) => b.range),
-        axisLabel: { rotate: 0, fontSize: 11 },
+        axisLabel: {
+          rotate: 0,
+          ...MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
+        },
       },
       yAxis: {
         type: "value",
         name: "Population",
         nameLocation: "middle",
         nameGap: 35,
-        nameTextStyle: { fontSize: 12 },
+        nameTextStyle: MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
+        axisLabel: {
+          ...MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
+        },
       },
       series: [
         {
@@ -168,20 +180,20 @@ export function ComplianceStats({
   return (
     <Card className={className}>
       <CardContent className="p-4 space-y-2">
-        <div className="space-y-1 text-xs text-gray-700 border-b pb-2">
+        <div className="space-y-1 border-b pb-2">
           <div className="flex items-center justify-between">
-            <span className="font-semibold">Full area</span>
-            <span>
+            <span className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Full area</span>
+            <span className={MAP_OVERLAY_BODY_SMALL_CLASS}>
               Avg = {stats.all.weightedAvg.toFixed(2)} | min = {stats.all.min.toFixed(2)} | max = {stats.all.max.toFixed(2)}
             </span>
           </div>
           {hasSelection && stats.selection && (
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center justify-between">
               <span className="flex items-center gap-1">
                 <span className="inline-block w-3 h-3 rounded-sm bg-[#D20C0C]" />
-                <span className="font-semibold">Selection ({selectedCells!.length} cell{selectedCells!.length === 1 ? "" : "s"})</span>
+                <span className={MAP_OVERLAY_META_TEXT_CLASS}>Selection ({selectedCells!.length} cell{selectedCells!.length === 1 ? "" : "s"})</span>
               </span>
-              <span>
+              <span className={MAP_OVERLAY_BODY_SMALL_CLASS}>
                 Avg = {stats.selection.weightedAvg.toFixed(2)} | min = {stats.selection.min.toFixed(2)} | max = {stats.selection.max.toFixed(2)}
               </span>
             </div>

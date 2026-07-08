@@ -1,6 +1,7 @@
 import * as React from "react"
 import type { Color, LegendBandsProps } from "@/app-types"
 import { fmt, rgb } from "@/app-config"
+import { MAP_OVERLAY_BODY_MAIN_CLASS } from "@/lib/map-overlay-styles"
 
 export function LegendBands({
   bounds,
@@ -27,7 +28,7 @@ export function LegendBands({
                 style={{ background: rgb(b.color) }}
                 aria-hidden
               />
-              <span className="tabular-nums">
+              <span className={`tabular-nums ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
                 {formatValue(b.from)}–{formatValue(b.to)}
               </span>
             </div>

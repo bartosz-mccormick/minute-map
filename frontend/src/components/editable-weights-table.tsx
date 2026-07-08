@@ -10,6 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  MAP_OVERLAY_BODY_MAIN_CLASS,
+  MAP_OVERLAY_PANEL_TITLE_CLASS,
+} from "@/lib/map-overlay-styles"
 import type { EditableWeightsTableProps, Weight } from "@/app-types"
 
 export function EditableWeightsTable({
@@ -49,8 +53,8 @@ export function EditableWeightsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Destination</TableHead>
-            <TableHead className="w-[120px]">Weight</TableHead>
+            <TableHead className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination</TableHead>
+            <TableHead className={`w-[120px] ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>Weight</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -59,7 +63,7 @@ export function EditableWeightsTable({
               <TableCell>
                 <div className="flex items-center gap-2">
                   <span>{destination.icon}</span>
-                  <span>{destination.label}</span>
+                  <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>{destination.label}</span>
                 </div>
               </TableCell>
               <TableCell>
@@ -71,7 +75,7 @@ export function EditableWeightsTable({
                   }
                   min={0}
                   step={0.1}
-                  className="w-full"
+                  className={`w-full ${MAP_OVERLAY_BODY_MAIN_CLASS}`}
                 />
               </TableCell>
             </TableRow>
