@@ -1,0 +1,45 @@
+{
+  "name": "dreams-xmin-city-accessibility-tool-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "frontend",
+    "landing"
+  ],
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "scripts": {
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:landing": "npm run dev -w landing",
+    "build": "npm run build --workspaces",
+    "build:frontend": "npm run build -w frontend",
+    "build:landing": "npm run build -w landing",
+    "lint": "npm run lint --workspaces",
+    "lint:frontend": "npm run lint -w frontend",
+    "lint:landing": "npm run lint -w landing"
+  },
+  "overrides": {
+    "@deck.gl/aggregation-layers": "9.1.14",
+    "@deck.gl/core": "9.1.14",
+    "@deck.gl/extensions": "9.1.14",
+    "@deck.gl/geo-layers": "9.1.14",
+    "@deck.gl/layers": "9.1.14",
+    "@deck.gl/mapbox": "9.1.14",
+    "@deck.gl/mesh-layers": "9.1.14"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@types/node": "24.12.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "4.7.0",
+    "eslint": "9.39.1",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-plugin-react-refresh": "0.4.24",
+    "globals": "16.4.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.3",
+    "vite": "6.4.1"
+  }
+}
