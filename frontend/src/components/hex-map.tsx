@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Pencil, Trash2 } from "lucide-react"
 import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibre"
-import { H3HexagonLayer } from "deck.gl"
+import { H3HexagonLayer } from "@deck.gl/geo-layers"
 import { PolygonLayer } from "@deck.gl/layers"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import "maplibre-gl/dist/maplibre-gl.css"

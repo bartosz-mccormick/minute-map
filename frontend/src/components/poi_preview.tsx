@@ -1,28 +1,10 @@
 import * as React from "react"
-import { createElement } from "react"
-import { renderToStaticMarkup } from "react-dom/server"
 import * as duckdb from "@duckdb/duckdb-wasm"
 import { IconLayer, ScatterplotLayer } from "@deck.gl/layers"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import {
-  Baby,
-  Beer,
-  Blocks,
   ChevronDown,
   ChevronUp,
-  Coffee,
-  Croissant,
-  Dumbbell,
-  Landmark,
-  Library,
-  Package,
-  Pill,
-  School,
-  ShoppingCart,
-  Stethoscope,
-  Trees,
-  Utensils,
-  type LucideIcon,
 } from "lucide-react"
 import { useControl, useMap } from "react-map-gl/maplibre"
 import {
@@ -89,36 +71,33 @@ const MAP_CONTROL_HITBOX_HEIGHT = 160
 const POI_CATEGORIES: Array<{
   value: PoiCategory
   label: string
-  Icon: LucideIcon
+  icon: string
 }> = [
-  { value: "supermarket", label: "Supermarket", Icon: ShoppingCart },
-  { value: "pharmacy", label: "Pharmacy", Icon: Pill },
-  { value: "atm_bank", label: "ATM/Bank", Icon: Landmark },
-  { value: "post", label: "Post Office", Icon: Package },
-  { value: "gp", label: "General Practitioner", Icon: Stethoscope },
-  { value: "restaurant", label: "Restaurant", Icon: Utensils },
-  { value: "cafe", label: "Cafe", Icon: Coffee },
-  { value: "bar", label: "Bar", Icon: Beer },
-  { value: "bakery", label: "Bakery", Icon: Croissant },
-  { value: "school", label: "School", Icon: School },
-  { value: "kindergarten", label: "Kindergarten", Icon: Baby },
-  { value: "library", label: "Library", Icon: Library },
-  { value: "sport", label: "Sports Facility", Icon: Dumbbell },
-  { value: "park", label: "Park", Icon: Trees },
-  { value: "playground", label: "Playground", Icon: Blocks },
+  { value: "supermarket", label: "Supermarket", icon: "🛒" },
+  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
+  { value: "atm_bank", label: "ATM/Bank", icon: "🏦" },
+  { value: "post", label: "Post Office", icon: "📦" },
+  { value: "gp", label: "General Practitioner", icon: "🩺" },
+  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
+  { value: "cafe", label: "Cafe", icon: "☕" },
+  { value: "bar", label: "Bar", icon: "🍺" },
+  { value: "bakery", label: "Bakery", icon: "🥐" },
+  { value: "school", label: "School", icon: "🏫" },
+  { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
+  { value: "library", label: "Library", icon: "📚" },
+  { value: "sport", label: "Sports Facility", icon: "🏃" },
+  { value: "park", label: "Park", icon: "🌳" },
+  { value: "playground", label: "Playground", icon: "🛝" },
 ]
 
 const categoryConfigByValue = new Map(POI_CATEGORIES.map((category) => [category.value, category]))
 const iconUrlByCategory = new Map(
   POI_CATEGORIES.map((category) => {
-    const svg = renderToStaticMarkup(
-      createElement(category.Icon, {
-        color: "#111827",
-        size: 24,
-        strokeWidth: 1.9,
-        absoluteStrokeWidth: true,
-      })
-    )
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+        <text x="16" y="23" text-anchor="middle" font-size="21">${category.icon}</text>
+      </svg>
+    `.trim()
 
     return [category.value, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`]
   })
@@ -377,9 +356,9 @@ export function PoiPreview() {
   )
   const showDetailedMarkers = zoom >= DETAILED_POI_ZOOM
   const showCloseMarkers = zoom >= CLOSE_POI_ZOOM
-  const markerRadius = showCloseMarkers ? 10 : 9
+  const markerRadius = showCloseMarkers ? 13 : 12
   const markerLineWidth = showCloseMarkers ? 0.35 : 0.9
-  const markerIconSize = showCloseMarkers ? 16 : 15
+  const markerIconSize = showCloseMarkers ? 22 : 20
   const markerRows = React.useMemo(() => {
     if (!showDetailedMarkers) return []
     if (showCloseMarkers) return renderablePois.map(toMarkerRow)
@@ -454,10 +433,10 @@ export function PoiPreview() {
         getPosition: (marker) => [marker.lon, marker.lat],
         getIcon: (marker) => ({
           url: iconUrlByCategory.get(marker.category) ?? "",
-          width: 24,
-          height: 24,
-          anchorX: 12,
-          anchorY: 12,
+          width: 32,
+          height: 32,
+          anchorX: 16,
+          anchorY: 16,
         }),
         getSize: markerIconSize,
         sizeUnits: "pixels",
@@ -614,7 +593,9 @@ export function PoiPreview() {
                           className="h-3.5 w-3.5"
                         />
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-black bg-white">
-                          <category.Icon size={13} strokeWidth={1.9} />
+                          <span className="text-[11px] leading-none" aria-hidden>
+                            {category.icon}
+                          </span>
                         </span>
                         <span className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
                           {category.label}
