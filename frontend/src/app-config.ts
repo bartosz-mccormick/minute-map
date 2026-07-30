@@ -10,6 +10,8 @@ import type {
   Weight,
 } from "./app-types"
 
+
+
 export const INITIAL_VIEW_STATE = {
   longitude: Number(import.meta.env.VITE_INITIAL_LONGITUDE),
   latitude: Number(import.meta.env.VITE_INITIAL_LATITUDE),
@@ -17,6 +19,12 @@ export const INITIAL_VIEW_STATE = {
   pitch: Number(import.meta.env.VITE_INITIAL_PITCH),
   bearing: Number(import.meta.env.VITE_INITIAL_BEARING),
 }
+
+// handle parquet files
+export const R2_BUCKET = import.meta.env.VITE_R2_BUCKET?.trim().replace(/\/+$/, "") || null;
+  
+export const getDataFileUrl = (filename: string): string =>
+  R2_BUCKET ? `${R2_BUCKET}/${filename}` : `/data/${filename}`;
 
 export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 export const MAX_TT = 30

@@ -148,6 +148,10 @@ export default function app() {
   }, [])
 
   React.useEffect(() => {
+    void ensureDuckDbClient()
+  }, [ensureDuckDbClient]) 
+
+  React.useEffect(() => {
     if (drawnPolygons.length > 0) {
       setSelectedCellIds(polygonSelectedCellIds)
     }

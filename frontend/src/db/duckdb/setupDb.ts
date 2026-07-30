@@ -4,6 +4,8 @@ import type { DuckDbClient } from "./createDuckDb";
 import getComplianceBatchSql from "../sql/get-compliance-batch.sql?raw";
 import getComplianceBatchSummarySql from "../sql/get-compliance-batch-summary.sql?raw";
 
+import {getDataFileUrl} from "../../app-config.ts"
+
 let complianceDatabaseIsSetup = false;
 
 export async function setupDb(
@@ -12,19 +14,19 @@ export async function setupDb(
   if (complianceDatabaseIsSetup) {
     return;
   }
-
+  
   const { db, conn } = client;
 
   await db.registerFileURL(
     "grid.parquet",
-    "/data/grid.parquet",
+    getDataFileUrl("grid.parquet"),
     duckdb.DuckDBDataProtocol.HTTP,
     false
   );
 
   await db.registerFileURL(
     "grid_access.parquet",
-    "/data/grid_access.parquet",
+    getDataFileUrl("grid_access.parquet"),
     duckdb.DuckDBDataProtocol.HTTP,
     false
   );
