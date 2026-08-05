@@ -14,6 +14,8 @@ import {
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import { POI_DESTINATIONS, getDataFileUrl } from "@/app-config"
+import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
+import { usePoiViewportSync, type PoiMapLike } from "@/components/poi/usePoiViewportSync"
 import type { Destination } from "@/app-types"
 
 type PoiCategory = Destination["value"]
@@ -91,7 +93,9 @@ const POI_SOURCES: PoiSource[] = [
 
 const DETAILED_POI_ZOOM = 14
 const CLOSE_POI_ZOOM = 17
+const LOW_ZOOM_MAX_DOTS = 2500
 const MEDIUM_CLUSTER_PIXEL_SIZE = 28
+const POI_VIEWPORT_OVERSCAN_RATIO = 0.75
 const MAP_CONTROL_HITBOX_WIDTH = 84
 const MAP_CONTROL_HITBOX_HEIGHT = 160
 
@@ -116,10 +120,29 @@ const iconUrlByCategory = new Map(
     return [category.value, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`]
   })
 )
+const emptyIconDefinition = {
+  url: "",
+  width: 32,
+  height: 32,
+  anchorX: 16,
+  anchorY: 16,
+}
+const iconDefinitionByCategory = new Map(
+  POI_CATEGORIES.map((category) => [
+    category.value,
+    {
+      url: iconUrlByCategory.get(category.value) ?? "",
+      width: 32,
+      height: 32,
+      anchorX: 16,
+      anchorY: 16,
+    },
+  ])
+)
 
 let poiRowsPromise: Promise<PoiRow[]> | null = null
 
-function DeckGLOverlay(props: any) {
+function DeckGLOverlay(props: ConstructorParameters<typeof DeckOverlay>[0]) {
   const overlay = useControl(() => new DeckOverlay(props))
   overlay.setProps(props)
   return null
@@ -175,10 +198,33 @@ function toMarkerRow(poi: PoiRow): PoiMarkerRow {
   }
 }
 
-function buildMediumZoomMarkers(
+function hashString(value: string): number {
+  let hash = 2166136261
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return hash >>> 0
+}
+
+function getPoiStableRank(poi: PoiRow): number {
+  return hashString(`${poi.poi_id}:${poi.category}:${poi.lon}:${poi.lat}`) / 0xffffffff
+}
+
+function limitPoisForDotLayer(pois: PoiRow[]): PoiRow[] {
+  if (pois.length <= LOW_ZOOM_MAX_DOTS) return pois
+
+  const threshold = LOW_ZOOM_MAX_DOTS / pois.length
+  return pois.filter((poi) => getPoiStableRank(poi) <= threshold)
+}
+
+function buildPixelGridMarkers(
   pois: PoiRow[],
   map: unknown,
-  revision: number
+  revision: number,
+  pixelSize: number
 ): PoiMarkerRow[] {
   void revision
 
@@ -189,7 +235,7 @@ function buildMediumZoomMarkers(
 
   for (const poi of pois) {
     const point = project.call(map, [poi.lon, poi.lat])
-    const key = `${Math.floor(point.x / MEDIUM_CLUSTER_PIXEL_SIZE)}:${Math.floor(point.y / MEDIUM_CLUSTER_PIXEL_SIZE)}`
+    const key = `${Math.floor(point.x / pixelSize)}:${Math.floor(point.y / pixelSize)}`
     const group = groups.get(key)
     if (group) {
       group.push(poi)
@@ -247,6 +293,39 @@ function filterPoisOutsideMapControls(
   })
 }
 
+function filterPoisToViewport(
+  pois: PoiRow[],
+  map: unknown,
+  revision: number
+): PoiRow[] {
+  void revision
+
+  const getBounds = (map as {
+    getBounds?: () => {
+      getWest: () => number
+      getEast: () => number
+      getSouth: () => number
+      getNorth: () => number
+    }
+  })?.getBounds
+  if (!getBounds) return pois
+
+  const bounds = getBounds.call(map)
+  const west = bounds.getWest()
+  const east = bounds.getEast()
+  const south = bounds.getSouth()
+  const north = bounds.getNorth()
+  const lonPadding = (east - west) * POI_VIEWPORT_OVERSCAN_RATIO
+  const latPadding = (north - south) * POI_VIEWPORT_OVERSCAN_RATIO
+
+  return pois.filter((poi) => (
+    poi.lon >= west - lonPadding &&
+    poi.lon <= east + lonPadding &&
+    poi.lat >= south - latPadding &&
+    poi.lat <= north + latPadding
+  ))
+}
+
 function toPoiRows(rawRows: RawPoiRow[]): PoiRow[] {
   return rawRows
     .map((row) => {
@@ -279,6 +358,8 @@ async function loadPois(): Promise<PoiRow[]> {
   if (poiRowsPromise) return poiRowsPromise
 
   poiRowsPromise = (async () => {
+    incrementPoiPerfCounter("loadPois")
+
     const { createDuckDb } = await import("@/db/duckdb/createDuckDb")
     const { db, conn } = await createDuckDb()
     const categoriesSql = sqlList([...new Set(POI_CATEGORIES.map((category) => category.value))])
@@ -320,7 +401,6 @@ export function PoiPreview() {
   const [pois, setPois] = React.useState<PoiRow[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [zoom, setZoom] = React.useState(DETAILED_POI_ZOOM)
   const [viewRevision, setViewRevision] = React.useState(0)
   const [legendOpen, setLegendOpen] = React.useState(false)
   const [enabledCategories, setEnabledCategories] = React.useState<Set<PoiCategory>>(() => new Set())
@@ -331,26 +411,16 @@ export function PoiPreview() {
     lines: string[]
   } | null>(null)
 
-  React.useEffect(() => {
-    if (!map) return
+  const handleViewportSettled = React.useCallback(() => {
+    setViewRevision((current) => current + 1)
+  }, [])
 
-    const handleMove = () => {
-      setZoom(map.getZoom())
-    }
-    const handleMoveEnd = () => {
-      setZoom(map.getZoom())
-      setViewRevision((current) => current + 1)
-    }
-
-    handleMove()
-    map.on("move", handleMove)
-    map.on("moveend", handleMoveEnd)
-
-    return () => {
-      map.off("move", handleMove)
-      map.off("moveend", handleMoveEnd)
-    }
-  }, [map])
+  const { poiZoomMode, isMapInteracting } = usePoiViewportSync({
+    map: map as PoiMapLike | null,
+    detailedZoom: DETAILED_POI_ZOOM,
+    closeZoom: CLOSE_POI_ZOOM,
+    onViewportSettled: handleViewportSettled,
+  })
 
   React.useEffect(() => {
     let cancelled = false
@@ -388,19 +458,38 @@ export function PoiPreview() {
     () => pois.filter((poi) => enabledCategories.has(poi.category)),
     [pois, enabledCategories]
   )
+  const viewportPois = React.useMemo(() => {
+    incrementPoiPerfCounter("viewportPois")
+
+    return filterPoisToViewport(visiblePois, map, viewRevision)
+  }, [map, viewRevision, visiblePois])
   const renderablePois = React.useMemo(
-    () => filterPoisOutsideMapControls(visiblePois, map, viewRevision),
-    [map, viewRevision, visiblePois]
+    () => {
+      incrementPoiPerfCounter("renderablePois")
+
+      return filterPoisOutsideMapControls(viewportPois, map, viewRevision)
+    },
+    [map, viewRevision, viewportPois]
   )
-  const showDetailedMarkers = zoom >= DETAILED_POI_ZOOM
-  const showCloseMarkers = zoom >= CLOSE_POI_ZOOM
+  const showDetailedMarkers = poiZoomMode !== "dots"
+  const showCloseMarkers = poiZoomMode === "close"
+  const enablePoiPicking = !isMapInteracting && showDetailedMarkers
   const markerRadius = showCloseMarkers ? 13 : 12
   const markerLineWidth = showCloseMarkers ? 0.35 : 0.9
   const markerIconSize = showCloseMarkers ? 22 : 20
   const markerRows = React.useMemo(() => {
-    if (!showDetailedMarkers) return []
+    incrementPoiPerfCounter("markerRows")
+
+    if (!showDetailedMarkers) {
+      return limitPoisForDotLayer(renderablePois).map(toMarkerRow)
+    }
     if (showCloseMarkers) return renderablePois.map(toMarkerRow)
-    return buildMediumZoomMarkers(renderablePois, map, viewRevision)
+    return buildPixelGridMarkers(
+      renderablePois,
+      map,
+      viewRevision,
+      MEDIUM_CLUSTER_PIXEL_SIZE
+    )
   }, [map, renderablePois, showCloseMarkers, showDetailedMarkers, viewRevision])
   const typedMarkerRows = React.useMemo(
     () => markerRows.filter((marker): marker is PoiMarkerRow & { category: PoiCategory } => !marker.mixed && marker.category !== null),
@@ -412,12 +501,14 @@ export function PoiPreview() {
   )
 
   const poiLayers = React.useMemo(() => {
+    incrementPoiPerfCounter("poiLayers")
+
     if (!showDetailedMarkers) {
       return [
-        new ScatterplotLayer<PoiRow>({
+        new ScatterplotLayer<PoiMarkerRow>({
           id: "poi-preview-dot-layer",
-          data: renderablePois,
-          getPosition: (poi) => [poi.lon, poi.lat],
+          data: markerRows,
+          getPosition: (marker) => [marker.lon, marker.lat],
           getFillColor: [0, 0, 0],
           getRadius: 2,
           radiusUnits: "pixels",
@@ -425,7 +516,7 @@ export function PoiPreview() {
           radiusMaxPixels: 3,
           stroked: false,
           filled: true,
-          pickable: true,
+          pickable: false,
           opacity: 0.8,
         }),
       ]
@@ -443,7 +534,7 @@ export function PoiPreview() {
         radiusMaxPixels: 5,
         stroked: false,
         filled: true,
-        pickable: true,
+        pickable: enablePoiPicking,
         opacity: 0.85,
       }),
       new ScatterplotLayer<PoiMarkerRow>({
@@ -462,33 +553,28 @@ export function PoiPreview() {
         radiusMaxPixels: markerRadius,
         stroked: true,
         filled: true,
-        pickable: true,
+        pickable: enablePoiPicking,
         opacity: 0.95,
       }),
       new IconLayer<PoiMarkerRow & { category: PoiCategory }>({
         id: "poi-preview-marker-icon",
         data: typedMarkerRows,
         getPosition: (marker) => [marker.lon, marker.lat],
-        getIcon: (marker) => ({
-          url: iconUrlByCategory.get(marker.category) ?? "",
-          width: 32,
-          height: 32,
-          anchorX: 16,
-          anchorY: 16,
-        }),
+        getIcon: (marker) => iconDefinitionByCategory.get(marker.category) ?? emptyIconDefinition,
         getSize: markerIconSize,
         sizeUnits: "pixels",
-        pickable: true,
+        pickable: enablePoiPicking,
       }),
     ]
   }, [
     markerIconSize,
     markerLineWidth,
     markerRadius,
+    enablePoiPicking,
     mixedMarkerRows,
+    markerRows,
     showDetailedMarkers,
     typedMarkerRows,
-    renderablePois,
   ])
 
   const toggleCategory = React.useCallback((category: PoiCategory) => {
@@ -584,17 +670,21 @@ export function PoiPreview() {
             ? "min(17rem, calc(100vh - var(--poi-legend-top) - var(--bottom-left-panel-reserve)))"
             : undefined,
         }}
-        aria-label="POI legend"
+        aria-label="Destination Entrances legend"
       >
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Points of interest</div>
+          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
           <div className="flex items-center gap-1">
             {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
             <button
               type="button"
               onClick={() => setLegendOpen((open) => !open)}
               className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-100"
-              aria-label={legendOpen ? "Collapse POI legend" : "Expand POI legend"}
+              aria-label={
+                legendOpen
+                  ? "Collapse Destination Entrances legend"
+                  : "Expand Destination Entrances legend"
+              }
             >
               {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
