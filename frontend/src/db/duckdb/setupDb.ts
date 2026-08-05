@@ -31,6 +31,13 @@ export async function setupDb(
     false
   );
 
+  await db.registerFileURL(
+    "entrances.parquet",
+    getDataFileUrl("entrances.parquet"),
+    duckdb.DuckDBDataProtocol.HTTP,
+    false
+  );
+
   await conn.query(`
     CREATE OR REPLACE VIEW grid_src AS
     SELECT *
@@ -42,7 +49,6 @@ export async function setupDb(
     SELECT *
     FROM read_parquet('grid_access.parquet')
   `);
-
 
   // need to create placeholder tables for macros to get initialized properly
 

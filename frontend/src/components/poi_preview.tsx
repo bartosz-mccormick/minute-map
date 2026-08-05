@@ -13,23 +13,10 @@ import {
   MAP_OVERLAY_META_TEXT_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
+import { DESTINATIONS, getDataFileUrl } from "@/app-config"
+import type { Destination } from "@/app-types"
 
-type PoiCategory =
-  | "supermarket"
-  | "pharmacy"
-  | "atm_bank"
-  | "post"
-  | "gp"
-  | "restaurant"
-  | "cafe"
-  | "bar"
-  | "bakery"
-  | "school"
-  | "kindergarten"
-  | "library"
-  | "sport"
-  | "park"
-  | "playground"
+type PoiCategory = Destination["value"] | "park_entrance"
 
 type PoiRow = {
   poi_id: string
@@ -58,10 +45,53 @@ type RawPoiRow = {
   subtype?: string
   lon?: number
   lat?: number
+  geom?: ArrayBuffer | Uint8Array | number[] | string
 }
 
-const POI_PARQUET_FILE = "pois_munich_normalized_v5.parquet"
-const POI_PARQUET_URL = "/data/pois_munich_normalized_v5.parquet"
+type PoiSource = {
+  file: string
+  url: string
+  query: string
+}
+
+const POI_SOURCES: PoiSource[] = [
+  {
+    file: "entrances.parquet",
+    url: getDataFileUrl("entrances.parquet"),
+    query: `
+      SELECT
+        CAST(row_number() OVER () AS VARCHAR) AS poi_id,
+        '' AS name,
+        CASE
+          WHEN class_b = 'park' THEN 'park_entrance'
+          ELSE class_b
+        END AS category,
+        '' AS subtype,
+        geom
+      FROM poi_src
+      WHERE class_b IN (__CATEGORIES__)
+        AND geom IS NOT NULL
+    `,
+  },
+  {
+    file: "pois_munich_normalized_v5.parquet",
+    url: "/data/pois_munich_normalized_v5.parquet",
+    query: `
+      SELECT
+        poi_id,
+        COALESCE(name, '') AS name,
+        category,
+        COALESCE(subtype, '') AS subtype,
+        lon,
+        lat
+      FROM poi_src
+      WHERE category IN (__CATEGORIES__)
+        AND lon IS NOT NULL
+        AND lat IS NOT NULL
+    `,
+  },
+]
+
 const DETAILED_POI_ZOOM = 14
 const CLOSE_POI_ZOOM = 17
 const MEDIUM_CLUSTER_PIXEL_SIZE = 28
@@ -73,21 +103,8 @@ const POI_CATEGORIES: Array<{
   label: string
   icon: string
 }> = [
-  { value: "supermarket", label: "Supermarket", icon: "🛒" },
-  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
-  { value: "atm_bank", label: "ATM/Bank", icon: "🏦" },
-  { value: "post", label: "Post Office", icon: "📦" },
-  { value: "gp", label: "General Practitioner", icon: "🩺" },
-  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
-  { value: "cafe", label: "Cafe", icon: "☕" },
-  { value: "bar", label: "Bar", icon: "🍺" },
-  { value: "bakery", label: "Bakery", icon: "🥐" },
-  { value: "school", label: "School", icon: "🏫" },
-  { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
-  { value: "library", label: "Library", icon: "📚" },
-  { value: "sport", label: "Sports Facility", icon: "🏃" },
-  { value: "park", label: "Park", icon: "🌳" },
-  { value: "playground", label: "Playground", icon: "🛝" },
+  ...DESTINATIONS.filter((destination) => destination.value !== "park"),
+  { value: "park_entrance", label: "Park entrances", icon: "🌳" },
 ]
 
 const categoryConfigByValue = new Map(POI_CATEGORIES.map((category) => [category.value, category]))
@@ -103,8 +120,6 @@ const iconUrlByCategory = new Map(
   })
 )
 
-let poiDatabaseIsSetup = false
-let poiDatabaseSetupPromise: Promise<void> | null = null
 let poiRowsPromise: Promise<PoiRow[]> | null = null
 
 function DeckGLOverlay(props: any) {
@@ -115,6 +130,39 @@ function DeckGLOverlay(props: any) {
 
 function sqlList(values: string[]) {
   return values.map((value) => `'${value.replace(/'/g, "''")}'`).join(", ")
+}
+
+function parseWkbPoint(value: RawPoiRow["geom"]): { lon: number; lat: number } | null {
+  if (!value) return null
+
+  let bytes: Uint8Array
+  if (value instanceof Uint8Array) {
+    bytes = value
+  } else if (value instanceof ArrayBuffer) {
+    bytes = new Uint8Array(value)
+  } else if (Array.isArray(value)) {
+    bytes = new Uint8Array(value)
+  } else if (typeof value === "string") {
+    const cleanHex = value.startsWith("\\x") ? value.slice(2) : value
+    if (cleanHex.length < 42 || cleanHex.length % 2 !== 0) return null
+    bytes = new Uint8Array(cleanHex.length / 2)
+    for (let i = 0; i < cleanHex.length; i += 2) {
+      bytes[i / 2] = Number.parseInt(cleanHex.slice(i, i + 2), 16)
+    }
+  } else {
+    return null
+  }
+
+  if (bytes.byteLength < 21) return null
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const littleEndian = view.getUint8(0) === 1
+  const geometryType = view.getUint32(1, littleEndian)
+  if (geometryType !== 1) return null
+
+  return {
+    lon: view.getFloat64(5, littleEndian),
+    lat: view.getFloat64(13, littleEndian),
+  }
 }
 
 function toMarkerRow(poi: PoiRow): PoiMarkerRow {
@@ -202,76 +250,72 @@ function filterPoisOutsideMapControls(
   })
 }
 
-async function setupPoiDatabase() {
-  if (poiDatabaseIsSetup) return
+function toPoiRows(rawRows: RawPoiRow[]): PoiRow[] {
+  return rawRows
+    .map((row) => {
+      const parsedPoint =
+        typeof row.lon === "number" && typeof row.lat === "number"
+          ? { lon: row.lon, lat: row.lat }
+          : parseWkbPoint(row.geom)
 
-  if (!poiDatabaseSetupPromise) {
-    poiDatabaseSetupPromise = (async () => {
-      const { createDuckDb } = await import("@/db/duckdb/createDuckDb")
-      const { db, conn } = await createDuckDb()
+      if (
+        !parsedPoint ||
+        typeof row.category !== "string" ||
+        !categoryConfigByValue.has(row.category as PoiCategory)
+      ) {
+        return null
+      }
 
-      await db.registerFileURL(
-        POI_PARQUET_FILE,
-        POI_PARQUET_URL,
-        duckdb.DuckDBDataProtocol.HTTP,
-        false
-      )
-
-      await conn.query(`
-        CREATE OR REPLACE VIEW poi_src AS
-        SELECT *
-        FROM read_parquet('${POI_PARQUET_FILE}')
-      `)
-
-      poiDatabaseIsSetup = true
-    })()
-  }
-
-  await poiDatabaseSetupPromise
+      return {
+        poi_id: row.poi_id || `${row.category}-${parsedPoint.lon}-${parsedPoint.lat}`,
+        name: row.name || "",
+        category: row.category as PoiCategory,
+        subtype: row.subtype || "",
+        lon: parsedPoint.lon,
+        lat: parsedPoint.lat,
+      }
+    })
+    .filter((row): row is PoiRow => row !== null)
 }
 
 async function loadPois(): Promise<PoiRow[]> {
   if (poiRowsPromise) return poiRowsPromise
 
   poiRowsPromise = (async () => {
-    await setupPoiDatabase()
-
     const { createDuckDb } = await import("@/db/duckdb/createDuckDb")
-    const { conn } = await createDuckDb()
+    const { db, conn } = await createDuckDb()
+    const sourceCategories = POI_CATEGORIES.map((category) =>
+      category.value === "park_entrance" ? "park" : category.value
+    )
+    const categoriesSql = sqlList([...new Set(sourceCategories)])
+    let lastError: unknown = null
 
-    const result = await conn.query(`
-      SELECT
-        poi_id,
-        COALESCE(name, '') AS name,
-        category,
-        COALESCE(subtype, '') AS subtype,
-        lon,
-        lat
-      FROM poi_src
-      WHERE category IN (${sqlList(POI_CATEGORIES.map((category) => category.value))})
-        AND lon IS NOT NULL
-        AND lat IS NOT NULL
-    `)
+    await conn.query("SET enable_geoparquet_conversion = false")
 
-    return result
-      .toArray()
-      .map((row) => row.toJSON() as RawPoiRow)
-      .filter((row): row is RawPoiRow & { category: PoiCategory; lon: number; lat: number } => {
-        return (
-          typeof row.category === "string" &&
-          categoryConfigByValue.has(row.category as PoiCategory) &&
-          typeof row.lon === "number" &&
-          typeof row.lat === "number"
+    for (const source of POI_SOURCES) {
+      try {
+        await db.registerFileURL(
+          source.file,
+          source.url,
+          duckdb.DuckDBDataProtocol.HTTP,
+          false
         )
-      })
-      .map((row) => ({
-        poi_id: row.poi_id || `${row.category}-${row.lon}-${row.lat}`,
-        name: row.name || "",
-        category: row.category,
-        subtype: row.subtype || "",
-        lon: row.lon,
-        lat: row.lat,
-      }))
+
+        await conn.query(`
+          CREATE OR REPLACE VIEW poi_src AS
+          SELECT *
+          FROM read_parquet('${source.file}')
+        `)
+
+        const result = await conn.query(source.query.replace("__CATEGORIES__", categoriesSql))
+        return toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow))
+      } catch (error) {
+        lastError = error
+        console.warn(`POI parquet source failed: ${source.file}`, error)
+      }
+    }
+
+    throw lastError
   })()
 
   return poiRowsPromise
@@ -488,7 +532,7 @@ export function PoiPreview() {
     const title =
       "count" in object && object.count > 1
         ? `${object.count} ${label}`
-        : object.name || "Unnamed POI"
+        : object.name || label
 
     return {
       title,
