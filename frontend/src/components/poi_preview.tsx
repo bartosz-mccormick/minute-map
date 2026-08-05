@@ -13,10 +13,10 @@ import {
   MAP_OVERLAY_META_TEXT_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
-import { DESTINATIONS, getDataFileUrl } from "@/app-config"
+import { POI_DESTINATIONS, getDataFileUrl } from "@/app-config"
 import type { Destination } from "@/app-types"
 
-type PoiCategory = Destination["value"] | "park_entrance"
+type PoiCategory = Destination["value"]
 
 type PoiRow = {
   poi_id: string
@@ -62,10 +62,7 @@ const POI_SOURCES: PoiSource[] = [
       SELECT
         CAST(row_number() OVER () AS VARCHAR) AS poi_id,
         '' AS name,
-        CASE
-          WHEN class_b = 'park' THEN 'park_entrance'
-          ELSE class_b
-        END AS category,
+        class_b AS category,
         '' AS subtype,
         geom
       FROM poi_src
@@ -103,9 +100,9 @@ const POI_CATEGORIES: Array<{
   label: string
   icon: string
 }> = [
-  ...DESTINATIONS.filter((destination) => destination.value !== "park"),
-  { value: "park_entrance", label: "Park entrances", icon: "🌳" },
+  ...POI_DESTINATIONS,
 ]
+
 
 const categoryConfigByValue = new Map(POI_CATEGORIES.map((category) => [category.value, category]))
 const iconUrlByCategory = new Map(
@@ -284,10 +281,7 @@ async function loadPois(): Promise<PoiRow[]> {
   poiRowsPromise = (async () => {
     const { createDuckDb } = await import("@/db/duckdb/createDuckDb")
     const { db, conn } = await createDuckDb()
-    const sourceCategories = POI_CATEGORIES.map((category) =>
-      category.value === "park_entrance" ? "park" : category.value
-    )
-    const categoriesSql = sqlList([...new Set(sourceCategories)])
+    const categoriesSql = sqlList([...new Set(POI_CATEGORIES.map((category) => category.value))])
     let lastError: unknown = null
 
     await conn.query("SET enable_geoparquet_conversion = false")

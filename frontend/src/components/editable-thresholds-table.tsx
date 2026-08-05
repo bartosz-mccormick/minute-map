@@ -37,6 +37,7 @@ import {
   MAP_OVERLAY_BODY_MAIN_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
+import { getDestinationIcon, getDestinationLabel } from "@/app-config"
 import type { EditableThresholdsTableProps, Threshold } from "@/app-types"
 
 export function EditableThresholdsTable({
@@ -92,14 +93,6 @@ export function EditableThresholdsTable({
       "selectedDestinations",
       threshold.selectedDestinations.filter((d) => d !== destinationValue)
     )
-  }
-
-  const getDestinationLabel = (value: string) => {
-    return destinations.find((d) => d.value === value)?.label || value
-  }
-
-  const getDestinationIcon = (value: string) => {
-    return destinations.find((d) => d.value === value)?.icon || ""
   }
 
   return (
@@ -167,8 +160,10 @@ export function EditableThresholdsTable({
                                       : "opacity-0"
                                   }`}
                                 />
-                                <span className="mr-2">{destination.icon}</span>
-                                <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>{destination.label}</span>
+                                <span className="mr-2">{getDestinationIcon(destination.value)}</span>
+                                <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>
+                                  {getDestinationLabel(destination.value)}
+                                </span>
                               </CommandItem>
                             ))}
                           </CommandGroup>
