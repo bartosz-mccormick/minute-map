@@ -47,20 +47,32 @@ function parseIndicator(indicator: string) {
   return { amenity, mode, metric }
 }
 
-async function ensureComplianceBatch(conn: AsyncDuckDBConnection) {
+export async function runCalculations(conn: AsyncDuckDBConnection): Promise<void> {
+  // main query (amenity-mode)
   await conn.query(`
     CREATE OR REPLACE TEMP TABLE compliance_batch AS
     SELECT *
     FROM get_compliance_batch()
   `)
+
+  // amenity-level summary
+  await conn.query(`
+    CREATE OR REPLACE TEMP TABLE compliance_batch_amenity_summary AS
+    SELECT *
+    FROM get_compliance_batch_amenity_summary()
+  `)
+  // cell-level summary
+  await conn.query(`
+    CREATE OR REPLACE TEMP TABLE compliance_batch_summary AS
+    SELECT *
+    FROM get_compliance_batch_summary()
+  `)
 }
 
-export async function runCalculations(
+export async function getMapData(
   conn: AsyncDuckDBConnection,
   indicator = "compliance_weighted_avg"
 ): Promise<MapRow[]> {
-  await ensureComplianceBatch(conn)
-
   const parsedIndicator = parseIndicator(indicator)
   const mapRowsSql =
     indicator === "compliance_weighted_avg" || parsedIndicator === null
@@ -70,33 +82,29 @@ export async function runCalculations(
           pop,
           compliance_weighted_avg AS value,
           compliance_weighted_avg
-        FROM get_compliance_summary_by_amenity_batch()
+        FROM compliance_batch_summary
         ORDER BY h3_cell
       `
       : `
-        WITH summary AS (
-          SELECT *
-          FROM get_compliance_summary_by_amenity_batch()
-        ),
-        metric_values AS (
+        WITH metric_values AS (
           SELECT
             h3_cell,
             CASE
-              WHEN ${sqlString(parsedIndicator.metric)} = 'compliance' THEN max(compliance)
-              WHEN ${sqlString(parsedIndicator.metric)} = 'min_travel_time' THEN min(min_travel_time)
+              WHEN ${sqlString(parsedIndicator.metric)} = 'compliance' THEN compliance
+              WHEN ${sqlString(parsedIndicator.metric)} = 'min_travel_time' THEN min_travel_time
+              WHEN ${sqlString(parsedIndicator.metric)} = 'n_total' THEN n_total 
               ELSE NULL
             END AS value
           FROM compliance_batch
           WHERE class_b = ${sqlString(parsedIndicator.amenity)}
             AND mode_config = ${sqlString(parsedIndicator.mode)}
-          GROUP BY h3_cell
         )
         SELECT
           summary.h3_cell,
           summary.pop,
           metric_values.value,
           summary.compliance_weighted_avg
-        FROM summary
+        FROM compliance_batch_summary AS summary
         LEFT JOIN metric_values
           ON metric_values.h3_cell = summary.h3_cell
         ORDER BY summary.h3_cell

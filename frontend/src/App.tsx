@@ -211,6 +211,16 @@ export default function app() {
     [clearSelectedCellDetails, loadSelectedCellDetails, selectedCellIds]
   )
 
+  const loadMapData = React.useCallback(
+    async (indicator: string) => {
+      const client = await ensureDuckDbClient()
+      const { getMapData } = await import("./db/duckdb/runCalculations")
+      const duckDbData = await getMapData(client.conn, indicator)
+      setHexData(duckDbData)
+    },
+    [ensureDuckDbClient]
+  )
+
   const handleIndicatorChange = React.useCallback(
     async (value: string) => {
       setSelectedIndicator(value)
@@ -218,15 +228,12 @@ export default function app() {
       if (hexData.length === 0) return
 
       try {
-        const client = await ensureDuckDbClient()
-        const { runCalculations } = await import("./db/duckdb/runCalculations")
-        const duckDbData = await runCalculations(client.conn, value)
-        setHexData(duckDbData)
+        await loadMapData(value)
       } catch (error) {
         console.error("DuckDB indicator refresh failed:", error)
       }
     },
-    [ensureDuckDbClient, hexData.length]
+    [hexData.length, loadMapData]
   )
 
   const handleSelectBin = React.useCallback(
@@ -289,9 +296,8 @@ export default function app() {
       ])
 
       await createInputTables(client.conn, thresholds, weights)
-      const duckDbData = await runCalculations(client.conn, selectedIndicator)
-
-      setHexData(duckDbData)
+      await runCalculations(client.conn)
+      await loadMapData(selectedIndicator)
       setSelectedCellIds(new Set())
       clearSelectedCellDetails()
       setAvailableIndicators(buildIndicatorOptions(thresholds))

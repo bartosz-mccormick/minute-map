@@ -2,6 +2,7 @@ import * as duckdb from "@duckdb/duckdb-wasm";
 import type { DuckDbClient } from "./createDuckDb";
 
 import getComplianceBatchSql from "../sql/get-compliance-batch.sql?raw";
+import getComplianceBatchAmenitySummarySql from "../sql/get-compliance-batch-amenity-summary.sql?raw";
 import getComplianceBatchSummarySql from "../sql/get-compliance-batch-summary.sql?raw";
 
 import {getDataFileUrl} from "../../app-config.ts"
@@ -88,8 +89,20 @@ export async function setupDb(
     )
   `);
 
+  await conn.query(`
+    CREATE OR REPLACE TEMP TABLE compliance_batch_amenity_summary (
+      h3_cell TEXT,
+      pop DOUBLE,
+      class_b TEXT,
+      max_n_total DOUBLE,
+      min_min_travel_time DOUBLE,
+      max_compliance DOUBLE
+    )
+  `);
+
   await conn.query(getComplianceBatchSql);
 
+  await conn.query(getComplianceBatchAmenitySummarySql);
 
   await conn.query(getComplianceBatchSummarySql);
 

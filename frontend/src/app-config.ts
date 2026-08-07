@@ -86,12 +86,13 @@ export const INITIAL_THRESHOLDS: Threshold[] = []
 
 export const ALWAYS_AVAILABLE_INDICATORS: NestedOption[] = [
   { value: "compliance_weighted_avg", label: "X-Min City Compliance" },
+  { value: "pop", label: "Population" }
 ]
 
 export const SINGLE_DESTINATION_INDICATORS = [
   { value: "compliance", label: "Compliance" },
   { value: "min_travel_time", label: "Time to Nearest" },
-  { value: "min_travel_time_X", label: "Time to Nearest X" },
+  { value: "n_total", label: "Number of Opportunities" },
 ]
 
 export function rgb([r, g, b]: Color) {
