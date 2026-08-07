@@ -75,6 +75,15 @@ export interface HexMapDeckObject {
   [key: string]: unknown
 }
 
+export type HexFeatureProperties = HexMapDeckObject & {
+  fillColor: string
+}
+
+export type HexFeatureCollection = GeoJSON.FeatureCollection<
+  GeoJSON.Polygon,
+  HexFeatureProperties
+>
+
 export type MapboxDrawAll = {
   features: GeoJSON.Feature[]
 }

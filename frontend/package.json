@@ -7,11 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:perf": "npm run build && playwright test -c playwright.perf.config.ts e2e/map-zoom-performance.perf.spec.ts --workers=1"
   },
   "dependencies": {
-    "@deck.gl/carto": "9.1.14",
     "@deck.gl/aggregation-layers": "9.1.14",
+    "@deck.gl/carto": "9.1.14",
     "@deck.gl/core": "9.1.14",
     "@deck.gl/extensions": "9.1.14",
     "@deck.gl/geo-layers": "9.1.14",
@@ -43,7 +47,12 @@
     "tailwindcss": "4.1.13"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/mapbox__mapbox-gl-draw": "1.4.9",
-    "tw-animate-css": "1.3.8"
+    "jsdom": "^26.1.0",
+    "tw-animate-css": "1.3.8",
+    "vitest": "^3.2.4"
   }
 }

@@ -14,6 +14,7 @@ import {
   MAP_OVERLAY_BODY_MAIN_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
+import { getDestinationIcon, getDestinationLabel } from "@/app-config"
 import type { EditableWeightsTableProps, Weight } from "@/app-types"
 
 export function EditableWeightsTable({
@@ -62,8 +63,10 @@ export function EditableWeightsTable({
             <TableRow key={destination.value}>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <span>{destination.icon}</span>
-                  <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>{destination.label}</span>
+                  <span>{getDestinationIcon(destination.value)}</span>
+                  <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>
+                    {getDestinationLabel(destination.value)}
+                  </span>
                 </div>
               </TableCell>
               <TableCell>

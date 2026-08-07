@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { cellToBoundary } from "h3-js"
+import { cellToBoundary, gridDisk, latLngToCell } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
 import { EditableThresholdsTable } from "@/components/editable-thresholds-table"
@@ -14,6 +14,10 @@ import { EditableWeightsTable } from "@/components/editable-weights-table"
 import { NestedDropdownSelect } from "./components/nested-dropdown-select"
 import { ComplianceStats } from "@/components/ui/compliance-stats"
 import { HexMap } from "./components/hex-map"
+import {
+  getMapPerformanceMode,
+  shouldUseHexPerformanceFixture,
+} from "@/components/map-performance"
 import { LegendBands } from "./components/legend-bands"
 import { PoiPreview } from "./components/poi_preview"
 import {
@@ -33,13 +37,14 @@ import {
   getIndicatorFillConfig,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
+  INITIAL_VIEW_STATE,
   INITIAL_WEIGHTS,
   MAX_TT,
   PRESET_NESTED_OPTIONS,
   PRESETS,
   TRANSPORT_MODES,
 } from "@/app-config"
-import type { HexMapDeckObject, MapboxDrawApi, NestedOption, Threshold, Weight } from "@/app-types"
+import type { HexMapCell, HexMapDeckObject, MapboxDrawApi, NestedOption, Threshold, Weight } from "@/app-types"
 import type { DuckDbClient } from "./db/duckdb/createDuckDb"
 import type { CellDetailRow } from "./db/duckdb/runCalculations"
 
@@ -62,7 +67,25 @@ function areSetsEqual<T>(a: Set<T>, b: Set<T>) {
   return true
 }
 
-export default function app() {
+function createHexPerformanceFixture(): HexMapCell[] {
+  const centerCell = latLngToCell(INITIAL_VIEW_STATE.latitude, INITIAL_VIEW_STATE.longitude, 9)
+  return gridDisk(centerCell, 36).map((h3Cell, index) => {
+    const angle = index * 0.017
+    const value = (Math.sin(angle) + 1) / 2
+
+    return {
+      h3_cell: h3Cell,
+      value,
+      compliance_weighted_avg: value,
+      pop: 100 + (index % 90),
+    }
+  })
+}
+
+export default function App() {
+  const mapPerformanceMode = getMapPerformanceMode()
+  const isBaseMapOnly = mapPerformanceMode === "base"
+  const useHexPerformanceFixture = shouldUseHexPerformanceFixture()
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
   const [selectedPreset, setSelectedPreset] = React.useState("custom")
   const [thresholds, setThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
@@ -76,7 +99,7 @@ export default function app() {
     ALWAYS_AVAILABLE_INDICATORS
   )
 
-  const [hexData, setHexData] = React.useState<any[]>([])
+  const [hexData, setHexData] = React.useState<HexMapCell[]>([])
   const [selectedCellIds, setSelectedCellIds] = React.useState<Set<string>>(() => new Set())
   const [selectedCellDetails, setSelectedCellDetails] = React.useState<CellDetailRow[]>([])
   const [selectedCellDetailsCellId, setSelectedCellDetailsCellId] = React.useState<string | null>(null)
@@ -91,6 +114,11 @@ export default function app() {
   const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
   const duckDbInitPromiseRef = React.useRef<Promise<DuckDbClient> | null>(null)
   const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!useHexPerformanceFixture || hexData.length > 0) return
+    setHexData(createHexPerformanceFixture())
+  }, [hexData.length, useHexPerformanceFixture])
 
   const polygonSelectedCellIds = React.useMemo(() => {
     if (drawnPolygons.length === 0 || hexData.length === 0) return new Set<string>()
@@ -272,7 +300,7 @@ export default function app() {
       const draw = drawRef.current
       if (draw) {
         const all = draw.getAll()
-        const ids = (all.features as any[])
+        const ids = (all.features as Array<{ id?: unknown }>)
           .map((feature) => feature.id)
           .filter((id): id is string => typeof id === "string")
         if (ids.length > 0) draw.delete(ids)
@@ -391,9 +419,10 @@ export default function app() {
         }}
         drawRef={drawRef}
       >
-        <PoiPreview />
+        {isBaseMapOnly ? null : <PoiPreview />}
       </HexMap>
 
+      {isBaseMapOnly ? null : (
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
         <DialogTrigger asChild>
           <Button size="lg" className="fixed top-4 right-4 z-10 shadow-lg">
@@ -526,7 +555,9 @@ export default function app() {
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
+      {isBaseMapOnly ? null : (
       <div
         className="fixed z-10 w-72 rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
         style={{ left: "var(--left-panel-left)", top: "var(--left-panel-top)" }}
@@ -563,7 +594,9 @@ export default function app() {
           })}
         </div>
       </div>
+      )}
 
+      {isBaseMapOnly ? null : (
       <Card className="fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2" style={{ left: "var(--left-panel-left)" }}>
         <CardContent className="p-3 space-y-3">
           <NestedDropdownSelect
@@ -582,6 +615,7 @@ export default function app() {
           />
         </CardContent>
       </Card>
+      )}
 
       {(hexData.length > 0 || selectedCellDetailsCellId) && (
         <div className="fixed bottom-10 right-4 z-10 w-[380px] space-y-2">

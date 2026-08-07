@@ -4,6 +4,7 @@ import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibr
 import { H3HexagonLayer } from "@deck.gl/geo-layers"
 import { PolygonLayer } from "@deck.gl/layers"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
+import { cellToBoundary } from "h3-js"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { colorBins } from "@deck.gl/carto"
 import MapboxDraw from "@mapbox/mapbox-gl-draw"
@@ -18,6 +19,23 @@ import type {
   MapboxDrawRef,
 } from "@/app-types"
 import { INITIAL_VIEW_STATE, MAP_STYLE } from "@/app-config"
+import {
+  getHexLineWidthMinPixels,
+  getHexPerformanceVariant,
+  getMapPerformanceMode,
+  isHexLayerPickable,
+  shouldRenderMapOverlay,
+} from "@/components/map-performance"
+import {
+  HEX_FILL_LAYER_ID,
+  removeHexMapLayer,
+  removeSelectedHexMapLayer,
+  syncSelectedHexMapLayer,
+  syncHexMapLayer,
+} from "@/components/maplibre-hex-layer"
+import type { HexFeatureCollection } from "@/app-types"
+
+const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
 
 const DRAW_STYLES = [
   {
@@ -90,10 +108,175 @@ const DRAW_STYLES = [
 ] as unknown as MapboxDraw.MapboxDrawOptions["styles"]
 
 type DeckGLOverlayProps = ConstructorParameters<typeof DeckOverlay>[0]
+type MapProps = React.ComponentProps<typeof Map>
 
 function DeckGLOverlay(props: DeckGLOverlayProps) {
   const overlay = useControl(() => new DeckOverlay(props))
   overlay.setProps(props)
+  return null
+}
+
+function toRgbaString(color: ArrayLike<number>, alpha = 1) {
+  const red = color[0] ?? 0
+  const green = color[1] ?? 0
+  const blue = color[2] ?? 0
+  const sourceAlpha = color[3] ?? 255
+  const opacity = Math.max(0, Math.min(1, alpha * (sourceAlpha / 255)))
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`
+}
+
+function createHexFeatureCollection({
+  hexData,
+  getColorFunction,
+  fillColorOverride,
+}: {
+  hexData: HexMapCell[]
+  getColorFunction: (row: HexMapCell, info: never) => ArrayLike<number>
+  fillColorOverride?: string
+}): HexFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: hexData.map((row) => {
+      const boundary = cellToBoundary(row.h3_cell, true) as [number, number][]
+      const ring = [...boundary, boundary[0]]
+      const baseColor =
+        row.value === null || row.value === undefined
+          ? NO_DATA_COLOR
+          : getColorFunction(row, undefined as never)
+
+      return {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates: [ring],
+        },
+        properties: {
+          ...row,
+          fillColor: fillColorOverride ?? toRgbaString(baseColor, 1),
+        },
+      }
+    }),
+  }
+}
+
+function getMapLike(map: unknown): Parameters<typeof syncHexMapLayer>[0] {
+  const rawMap =
+    map && typeof map === "object" && "getMap" in map
+      ? (map as { getMap: () => unknown }).getMap()
+      : map
+  return rawMap as Parameters<typeof syncHexMapLayer>[0]
+}
+
+function MapLibreHexLayer({
+  data,
+  opacity,
+  lineWidth,
+}: {
+  data: HexFeatureCollection
+  opacity: number
+  lineWidth: number
+}) {
+  const { current: map } = useMap()
+  const mapLikeRef = React.useRef<Parameters<typeof syncHexMapLayer>[0] | null>(null)
+  const dataRef = React.useRef(data)
+  const opacityRef = React.useRef(opacity)
+  const lineWidthRef = React.useRef(lineWidth)
+
+  React.useEffect(() => {
+    dataRef.current = data
+    opacityRef.current = opacity
+    lineWidthRef.current = lineWidth
+  }, [data, lineWidth, opacity])
+
+  const syncCurrentLayer = React.useCallback(() => {
+    if (!mapLikeRef.current) return
+    syncHexMapLayer(
+      mapLikeRef.current,
+      dataRef.current,
+      opacityRef.current,
+      lineWidthRef.current
+    )
+  }, [])
+
+  React.useEffect(() => {
+    if (!map) return
+
+    const mapLike = getMapLike(map)
+    mapLikeRef.current = mapLike
+
+    const syncLayer = () => {
+      syncCurrentLayer()
+    }
+
+    if (mapLike.isStyleLoaded()) {
+      syncLayer()
+    } else {
+      mapLike.on("load", syncLayer)
+    }
+
+    return () => {
+      mapLike.off("load", syncLayer)
+      removeHexMapLayer(mapLike)
+      if (mapLikeRef.current === mapLike) {
+        mapLikeRef.current = null
+      }
+    }
+  }, [map, syncCurrentLayer])
+
+  React.useEffect(() => {
+    syncCurrentLayer()
+  }, [data, lineWidth, opacity, syncCurrentLayer])
+
+  return null
+}
+
+function MapLibreSelectedHexLayer({
+  data,
+}: {
+  data: HexFeatureCollection
+}) {
+  const { current: map } = useMap()
+  const mapLikeRef = React.useRef<Parameters<typeof syncSelectedHexMapLayer>[0] | null>(null)
+  const dataRef = React.useRef(data)
+
+  React.useEffect(() => {
+    dataRef.current = data
+  }, [data])
+
+  const syncCurrentLayer = React.useCallback(() => {
+    if (!mapLikeRef.current) return
+    syncSelectedHexMapLayer(mapLikeRef.current, dataRef.current)
+  }, [])
+
+  React.useEffect(() => {
+    if (!map) return
+
+    const mapLike = getMapLike(map)
+    mapLikeRef.current = mapLike
+
+    const syncLayer = () => {
+      syncCurrentLayer()
+    }
+
+    if (mapLike.isStyleLoaded()) {
+      syncLayer()
+    } else {
+      mapLike.on("load", syncLayer)
+    }
+
+    return () => {
+      mapLike.off("load", syncLayer)
+      removeSelectedHexMapLayer(mapLike)
+      if (mapLikeRef.current === mapLike) {
+        mapLikeRef.current = null
+      }
+    }
+  }, [map, syncCurrentLayer])
+
+  React.useEffect(() => {
+    syncCurrentLayer()
+  }, [data, syncCurrentLayer])
+
   return null
 }
 
@@ -184,7 +367,7 @@ function DrawToolbar({
       draw.changeMode("simple_select")
     } else {
       const all = draw.getAll()
-      const ids = (all.features as any[])
+      const ids = (all.features as Array<{ id?: unknown }>)
         .map((feature) => feature.id)
         .filter((id): id is string => typeof id === "string")
       if (ids.length > 0) {
@@ -200,7 +383,7 @@ function DrawToolbar({
     const draw = drawRef?.current
     if (!draw) return
     const all = draw.getAll()
-    const ids = (all.features as any[])
+    const ids = (all.features as Array<{ id?: unknown }>)
       .map((feature) => feature.id)
       .filter((id): id is string => typeof id === "string")
     if (ids.length > 0) {
@@ -257,6 +440,11 @@ export function HexMap({
   drawRef,
   children,
 }: HexMapProps) {
+  const performanceMode = getMapPerformanceMode()
+  const hexPerformanceVariant = getHexPerformanceVariant()
+  const renderNativeHexLayer =
+    performanceMode !== "base" &&
+    hexData.length > 0
   const getColorFunction = React.useMemo(
     () =>
       colorBins({
@@ -266,58 +454,114 @@ export function HexMap({
       }),
     [fillBounds, fillColors]
   )
-
-  const noDataColor: [number, number, number, number] = [200, 200, 200, 60]
+  const hexFeatureCollection = React.useMemo(
+    () => createHexFeatureCollection({ hexData, getColorFunction }),
+    [getColorFunction, hexData]
+  )
+  const selectedHexFeatureCollection = React.useMemo(
+    () =>
+      createHexFeatureCollection({
+        hexData: hexData.filter((row) => selectedCellIds.has(row.h3_cell)),
+        getColorFunction,
+        fillColorOverride: "rgba(210, 12, 12, 0.18)",
+      }),
+    [getColorFunction, hexData, selectedCellIds]
+  )
+  const nativeHexLineWidth = getHexLineWidthMinPixels({ variant: hexPerformanceVariant })
 
   const layers = React.useMemo(() => {
-    const hexLayer = new H3HexagonLayer({
-      id: `H3HexagonLayer-${indicator}`,
-      data: hexData,
-      elevationScale: 1000,
-      extruded: false,
-      filled: true,
-      getElevation: (row: HexMapCell) => row.value ?? 0,
-      getFillColor: (row: HexMapCell, info: unknown) => {
-        if (row.value === null || row.value === undefined) return noDataColor
-        const baseColor = getColorFunction(row, info as never)
-        if (selectedCellIds.size > 0 && !selectedCellIds.has(row.h3_cell)) {
-          return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
-        }
-        return baseColor
-      },
-      getLineColor: () => [255, 255, 255, 255] as [number, number, number, number],
-      lineWidthMinPixels: 1,
-      getHexagon: (row: HexMapCell) => row.h3_cell,
-      wireframe: false,
-      pickable: true,
-      opacity: gridOpacity,
-      updateTriggers: {
-        getElevation: indicator,
-        getFillColor: [indicator, selectedCellIds],
-        getLineColor: [selectedCellIds],
-      },
-    })
+    if (performanceMode === "base") return []
 
     const polygonFeatures = (drawnPolygons ?? []).filter(
       (feature: GeoJSON.Feature) => feature.geometry?.type === "Polygon"
     ) as GeoJSON.Feature<GeoJSON.Polygon>[]
+    const mapLayers = []
 
-    const polygonLayer =
-      polygonFeatures.length > 0
-        ? new PolygonLayer({
-            id: "DrawnPolygonLayer",
-            data: polygonFeatures,
-            getPolygon: (feature) => feature.geometry.coordinates,
-            getFillColor: [210, 12, 12, 0],
-            getLineColor: [210, 12, 12, 255],
-            getLineWidth: 2,
-            lineWidthUnits: "pixels",
-            pickable: false,
-          })
-        : null
+    if (hexData.length > 0 && !renderNativeHexLayer) {
+      mapLayers.push(new H3HexagonLayer({
+        id: "H3HexagonLayer",
+        data: hexData,
+        elevationScale: 1000,
+        extruded: false,
+        filled: true,
+        getElevation: (row: HexMapCell) => row.value ?? 0,
+        getFillColor: (row: HexMapCell, info: unknown) => {
+          if (row.value === null || row.value === undefined) return NO_DATA_COLOR
+          const baseColor = getColorFunction(row, info as never)
+          if (selectedCellIds.size > 0 && !selectedCellIds.has(row.h3_cell)) {
+            return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
+          }
+          return baseColor
+        },
+        getLineColor: () => [255, 255, 255, 255] as [number, number, number, number],
+        lineWidthMinPixels: nativeHexLineWidth,
+        getHexagon: (row: HexMapCell) => row.h3_cell,
+        wireframe: false,
+        pickable: isHexLayerPickable({
+          hexCellCount: hexData.length,
+          variant: hexPerformanceVariant,
+        }),
+        opacity: gridOpacity,
+        updateTriggers: {
+          getElevation: indicator,
+          getFillColor: [indicator, selectedCellIds],
+          getLineColor: [selectedCellIds],
+        },
+      }))
+    }
 
-    return polygonLayer ? [hexLayer, polygonLayer] : [hexLayer]
-  }, [hexData, indicator, selectedCellIds, getColorFunction, drawnPolygons, gridOpacity])
+    if (polygonFeatures.length > 0) {
+      mapLayers.push(new PolygonLayer({
+        id: "DrawnPolygonLayer",
+        data: polygonFeatures,
+        getPolygon: (feature) => feature.geometry.coordinates,
+        getFillColor: [210, 12, 12, 0],
+        getLineColor: [210, 12, 12, 255],
+        getLineWidth: 2,
+        lineWidthUnits: "pixels",
+        pickable: false,
+      }))
+    }
+
+    return mapLayers
+  }, [
+    hexData,
+    indicator,
+    selectedCellIds,
+    getColorFunction,
+    drawnPolygons,
+    gridOpacity,
+    hexPerformanceVariant,
+    nativeHexLineWidth,
+    performanceMode,
+    renderNativeHexLayer,
+  ])
+  const renderMapOverlay = shouldRenderMapOverlay({
+    performanceMode,
+    layerCount: layers.length,
+  })
+  const handleNativeHexClick = React.useCallback<NonNullable<MapProps["onClick"]>>(
+    (event) => {
+      if (!renderNativeHexLayer) return
+      const mapTarget = event.target as unknown as {
+        queryRenderedFeatures?: (
+          point: unknown,
+          options: { layers: string[] }
+        ) => Array<{ properties?: unknown }>
+      }
+      const feature = mapTarget.queryRenderedFeatures?.(event.point, {
+        layers: [HEX_FILL_LAYER_ID],
+      })[0]
+      const properties = feature?.properties as Partial<HexMapDeckObject> | undefined
+      if (!properties || typeof properties.h3_cell !== "string") {
+        onCellClick?.(null)
+        return
+      }
+
+      onCellClick?.(properties as HexMapDeckObject)
+    },
+    [onCellClick, renderNativeHexLayer]
+  )
 
   const handlePolygonUpdate = React.useCallback(
     (event: DrawEvent) => {
@@ -361,43 +605,60 @@ export function HexMap({
     <Map
       initialViewState={INITIAL_VIEW_STATE}
       mapStyle={MAP_STYLE}
+      onClick={renderNativeHexLayer ? handleNativeHexClick : undefined}
       style={{ width: "100%", height: "100%" }}
     >
-      <DeckGLOverlay
-        layers={layers}
-        onClick={(info) => {
-          const object = (info as { object?: HexMapDeckObject | null }).object ?? null
-          onCellClick?.(object)
-        }}
-        getTooltip={(info) => {
-          const object = (info as { object?: HexMapDeckObject | null }).object ?? null
-          if (!object) return null
-          const value = object.value ?? null
-          if (value === null) return "No data"
+      {renderNativeHexLayer ? (
+        <>
+          <MapLibreHexLayer
+            data={hexFeatureCollection}
+            opacity={gridOpacity}
+            lineWidth={nativeHexLineWidth}
+          />
+          <MapLibreSelectedHexLayer data={selectedHexFeatureCollection} />
+        </>
+      ) : null}
+      {renderMapOverlay ? (
+        <DeckGLOverlay
+          layers={layers}
+          onClick={(info) => {
+            const object = (info as { object?: HexMapDeckObject | null }).object ?? null
+            onCellClick?.(object)
+          }}
+          getTooltip={(info) => {
+            const object = (info as { object?: HexMapDeckObject | null }).object ?? null
+            if (!object) return null
+            const value = object.value ?? null
+            if (value === null) return "No data"
 
-          const isCompliance = indicator.includes("compliance")
-          const compliance = object.compliance_weighted_avg ?? null
-          const indicatorValue =
-            indicator === "compliance_weighted_avg"
-              ? ""
-              : isCompliance
-                ? `\nValue: ${Math.round(value * 100)}%`
-                : `\nValue: ${value} minutes`
+            const isCompliance = indicator.includes("compliance")
+            const compliance = object.compliance_weighted_avg ?? null
+            const indicatorValue =
+              indicator === "compliance_weighted_avg"
+                ? ""
+                : isCompliance
+                  ? `\nValue: ${Math.round(value * 100)}%`
+                  : `\nValue: ${value} minutes`
 
-          return `Compliance: ${compliance === null ? "No data" : `${Math.round(compliance * 100)}%`}${indicatorValue}`
-        }}
-      />
+            return `Compliance: ${compliance === null ? "No data" : `${Math.round(compliance * 100)}%`}${indicatorValue}`
+          }}
+        />
+      ) : null}
       <NavigationControl position="top-left" />
-      {children}
-      <DrawControl
-        drawRef={drawRef}
-        onUpdate={handlePolygonUpdate}
-        onDelete={handlePolygonDelete}
-      />
-      <DrawToolbar
-        drawRef={drawRef}
-        onClearPolygons={() => onPolygonsChange?.([])}
-      />
+      {performanceMode === "normal" ? children : null}
+      {performanceMode === "normal" ? (
+        <>
+          <DrawControl
+            drawRef={drawRef}
+            onUpdate={handlePolygonUpdate}
+            onDelete={handlePolygonDelete}
+          />
+          <DrawToolbar
+            drawRef={drawRef}
+            onClearPolygons={() => onPolygonsChange?.([])}
+          />
+        </>
+      ) : null}
     </Map>
   )
 }

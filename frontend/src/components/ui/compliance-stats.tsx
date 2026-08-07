@@ -11,7 +11,7 @@ import {
 
 type HexItem = {
   pop?: number
-  compliance_weighted_avg?: number
+  compliance_weighted_avg?: number | null
   h3_cell?: string
   [key: string]: unknown
 }

@@ -67,6 +67,12 @@ export const DESTINATIONS: Destination[] = [
   { value: "playground", label: "Playground", icon: "🛝" },
 ]
 
+export const POI_DESTINATIONS: Destination[] = DESTINATIONS.map((destination) =>
+  destination.value === "park"
+    ? { ...destination, label: "Park entrances", icon: "🌳" }
+    : destination
+)
+
 export const TRANSPORT_MODES: TransportMode[] = [
   { value: "walk", label: "Walking (4 km/h)" },
   { value: "bike", label: "Cycling" },
