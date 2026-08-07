@@ -28,7 +28,7 @@ test("wheel zoom does not reload POI parquet or repeatedly rebuild POI data", as
     }
   })
 
-  await page.goto("/")
+  await page.goto("/?poiPerfDebug=1")
   await page.getByText("Destination Entrances").waitFor({ state: "visible" })
 
   const selectAll = page.getByText("Select all")

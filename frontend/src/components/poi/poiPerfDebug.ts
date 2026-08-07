@@ -41,7 +41,11 @@ export function ensurePoiPerfDebug() {
 }
 
 export function incrementPoiPerfCounter(name: PoiPerfCounterName) {
-  if (!import.meta.env.DEV) return
+  if (typeof window === "undefined") return
+  const isEnabled =
+    import.meta.env.DEV ||
+    new URLSearchParams(window.location.search).get("poiPerfDebug") === "1"
+  if (!isEnabled) return
 
   ensurePoiPerfDebug()?.increment(name)
 }
