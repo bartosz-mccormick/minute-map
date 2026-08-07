@@ -1,3 +1,4 @@
+import { ALWAYS_AVAILABLE_INDICATORS } from "@/app-config"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"
 
 export type MapRow = {
@@ -37,12 +38,26 @@ function sqlString(value: string) {
 }
 
 function parseIndicator(indicator: string) {
-  const parts = indicator.split("::")
-  if (parts.length !== 3) return null
 
+  const defaultResponse =
+  {
+    amenity: null,
+    mode: null,
+    metric: ALWAYS_AVAILABLE_INDICATORS[0].value,
+  }
+
+  if (["compliance_weighted_avg", "pop"].includes(indicator)) {
+    return {
+      amenity: null,
+      mode: null,
+      metric: indicator,
+    }
+  }
+  const parts = indicator.split("::")
+  if (parts.length !== 3) return defaultResponse
   const [amenity, mode, metric] = parts
-  if (!amenity || !mode) return null
-  if (!["compliance", "min_travel_time", "min_travel_time_X"].includes(metric)) return null
+  if (!amenity || !mode) return defaultResponse
+  if (!["compliance", "min_travel_time", "n_total"].includes(metric)) return defaultResponse
 
   return { amenity, mode, metric }
 }
@@ -74,15 +89,16 @@ export async function getMapData(
   indicator = "compliance_weighted_avg"
 ): Promise<MapRow[]> {
   const parsedIndicator = parseIndicator(indicator)
+  //console.log(parsedIndicator)
   const mapRowsSql =
-    indicator === "compliance_weighted_avg" || parsedIndicator === null
+  (parsedIndicator.amenity === null && parsedIndicator.mode === null)
       ? `
         CREATE OR REPLACE TEMP TABLE map_data AS
         SELECT
           h3_cell,
           pop,
-          compliance_weighted_avg AS value,
-          compliance_weighted_avg
+          compliance_weighted_avg,
+          ${parsedIndicator.metric} AS value
         FROM compliance_batch_summary
         ORDER BY h3_cell
       `
@@ -91,12 +107,7 @@ export async function getMapData(
         WITH metric_values AS (
           SELECT
             h3_cell,
-            CASE
-              WHEN ${sqlString(parsedIndicator.metric)} = 'compliance' THEN compliance
-              WHEN ${sqlString(parsedIndicator.metric)} = 'min_travel_time' THEN min_travel_time
-              WHEN ${sqlString(parsedIndicator.metric)} = 'n_total' THEN n_total 
-              ELSE NULL
-            END AS value
+            ${parsedIndicator.metric} AS value
           FROM compliance_batch
           WHERE class_b = ${sqlString(parsedIndicator.amenity)}
             AND mode_config = ${sqlString(parsedIndicator.mode)}
@@ -104,8 +115,8 @@ export async function getMapData(
         SELECT
           summary.h3_cell,
           summary.pop,
-          metric_values.value,
-          summary.compliance_weighted_avg
+          summary.compliance_weighted_avg,
+          metric_values.value
         FROM compliance_batch_summary AS summary
         LEFT JOIN metric_values
           ON metric_values.h3_cell = summary.h3_cell
@@ -115,6 +126,7 @@ export async function getMapData(
   await conn.query(mapRowsSql);
 
   const result = await conn.query(`SELECT * FROM map_data`)
+
 
   return result.toArray().map((row) => {
     const raw = row.toJSON() as RawMapRow
