@@ -77,6 +77,7 @@ export async function getMapData(
   const mapRowsSql =
     indicator === "compliance_weighted_avg" || parsedIndicator === null
       ? `
+        CREATE OR REPLACE TEMP TABLE map_data AS
         SELECT
           h3_cell,
           pop,
@@ -86,6 +87,7 @@ export async function getMapData(
         ORDER BY h3_cell
       `
       : `
+      CREATE OR REPLACE TEMP TABLE map_data AS
         WITH metric_values AS (
           SELECT
             h3_cell,
@@ -109,8 +111,10 @@ export async function getMapData(
           ON metric_values.h3_cell = summary.h3_cell
         ORDER BY summary.h3_cell
       `
+      
+  await conn.query(mapRowsSql);
 
-  const result = await conn.query(mapRowsSql)
+  const result = await conn.query(`SELECT * FROM map_data`)
 
   return result.toArray().map((row) => {
     const raw = row.toJSON() as RawMapRow
