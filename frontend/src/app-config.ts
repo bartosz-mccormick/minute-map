@@ -49,6 +49,9 @@ export const TRAVEL_TIME_FILL_COLORS: Color[] = [
   [68, 1, 84],
 ]
 
+export const OPPORTUNITIES_FILL_BOUNDS = [0, 1, 2, 5, 10, 20, 50]
+export const OPPORTUNITIES_FILL_COLORS: Color[] = TRAVEL_TIME_FILL_COLORS
+
 export const DESTINATIONS: Destination[] = [
   { value: "grocery", label: "Supermarket", icon: "🛒" },
   { value: "pharmacy", label: "Pharmacy", icon: "💊" },
@@ -131,6 +134,13 @@ export const PRESET_NESTED_OPTIONS: NestedOption[] = [
 ]
 
 export function getIndicatorFillConfig(indicator: string | undefined): { bounds: number[]; colors: Color[] } {
+  if (indicator?.endsWith("::n_total")) {
+    return {
+      bounds: OPPORTUNITIES_FILL_BOUNDS,
+      colors: OPPORTUNITIES_FILL_COLORS,
+    }
+  }
+
   const isCompliance = indicator?.includes("compliance")
   return {
     bounds: isCompliance ? COMPLIANCE_FILL_BOUNDS : TRAVEL_TIME_FILL_BOUNDS,

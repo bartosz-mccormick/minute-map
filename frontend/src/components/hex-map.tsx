@@ -125,6 +125,12 @@ function toRgbaString(color: ArrayLike<number>, alpha = 1) {
   return `rgba(${red}, ${green}, ${blue}, ${opacity})`
 }
 
+function toNullableFiniteNumber(value: unknown) {
+  if (value === null || value === undefined) return null
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
+}
+
 function createHexFeatureCollection({
   hexData,
   getColorFunction,
@@ -137,12 +143,21 @@ function createHexFeatureCollection({
   return {
     type: "FeatureCollection",
     features: hexData.map((row) => {
-      const boundary = cellToBoundary(row.h3_cell, true) as [number, number][]
+      const value = toNullableFiniteNumber(row.value)
+      const complianceWeightedAvg = toNullableFiniteNumber(row.compliance_weighted_avg)
+      const pop = toNullableFiniteNumber(row.pop)
+      const renderRow: HexMapCell = {
+        h3_cell: String(row.h3_cell),
+        value,
+        compliance_weighted_avg: complianceWeightedAvg,
+        pop,
+      }
+      const boundary = cellToBoundary(renderRow.h3_cell, true) as [number, number][]
       const ring = [...boundary, boundary[0]]
       const baseColor =
-        row.value === null || row.value === undefined
+        value === null
           ? NO_DATA_COLOR
-          : getColorFunction(row, undefined as never)
+          : getColorFunction(renderRow, undefined as never)
 
       return {
         type: "Feature",
@@ -151,7 +166,10 @@ function createHexFeatureCollection({
           coordinates: [ring],
         },
         properties: {
-          ...row,
+          h3_cell: renderRow.h3_cell,
+          value,
+          compliance_weighted_avg: complianceWeightedAvg,
+          pop,
           fillColor: fillColorOverride ?? toRgbaString(baseColor, 1),
         },
       }

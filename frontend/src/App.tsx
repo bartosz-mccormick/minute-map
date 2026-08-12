@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { cellToBoundary, gridDisk, latLngToCell } from "h3-js"
+import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
 import { EditableThresholdsTable } from "@/components/editable-thresholds-table"
@@ -37,7 +37,6 @@ import {
   getIndicatorFillConfig,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
-  INITIAL_VIEW_STATE,
   INITIAL_WEIGHTS,
   MAX_TT,
   PRESET_NESTED_OPTIONS,
@@ -54,6 +53,17 @@ const travelScenarios = [
   // { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
 ]
 
+type HexPerformanceFixtureApi = {
+  indicators?: NestedOption[]
+  getHexData: (indicator: string) => HexMapCell[]
+}
+
+declare global {
+  interface Window {
+    __hexPerformanceFixture?: HexPerformanceFixtureApi
+  }
+}
+
 function logSelectionTiming(label: string, startedAt: number, details?: Record<string, unknown>) {
   const elapsedMs = performance.now() - startedAt
   console.info(`[selection-timing] ${label}: ${elapsedMs.toFixed(2)}ms`, details ?? {})
@@ -67,19 +77,9 @@ function areSetsEqual<T>(a: Set<T>, b: Set<T>) {
   return true
 }
 
-function createHexPerformanceFixture(): HexMapCell[] {
-  const centerCell = latLngToCell(INITIAL_VIEW_STATE.latitude, INITIAL_VIEW_STATE.longitude, 9)
-  return gridDisk(centerCell, 36).map((h3Cell, index) => {
-    const angle = index * 0.017
-    const value = (Math.sin(angle) + 1) / 2
-
-    return {
-      h3_cell: h3Cell,
-      value,
-      compliance_weighted_avg: value,
-      pop: 100 + (index % 90),
-    }
-  })
+function getHexPerformanceFixture() {
+  if (typeof window === "undefined") return null
+  return window.__hexPerformanceFixture ?? null
 }
 
 export default function App() {
@@ -113,12 +113,19 @@ export default function App() {
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
   const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
   const duckDbInitPromiseRef = React.useRef<Promise<DuckDbClient> | null>(null)
+  const mapDataRequestIdRef = React.useRef(0)
   const [loading, setLoading] = React.useState(false)
 
   React.useEffect(() => {
     if (!useHexPerformanceFixture || hexData.length > 0) return
-    setHexData(createHexPerformanceFixture())
-  }, [hexData.length, useHexPerformanceFixture])
+    const fixture = getHexPerformanceFixture()
+    if (!fixture) return
+
+    setHexData(fixture.getHexData(selectedIndicator))
+    if (fixture.indicators) {
+      setAvailableIndicators(fixture.indicators)
+    }
+  }, [hexData.length, selectedIndicator, useHexPerformanceFixture])
 
   const polygonSelectedCellIds = React.useMemo(() => {
     if (drawnPolygons.length === 0 || hexData.length === 0) return new Set<string>()
@@ -240,28 +247,45 @@ export default function App() {
   )
 
   const loadMapData = React.useCallback(
-    async (indicator: string) => {
+    async (indicator: string, requestId = mapDataRequestIdRef.current) => {
       const client = await ensureDuckDbClient()
       const { getMapData } = await import("./db/duckdb/runCalculations")
       const duckDbData = await getMapData(client.conn, indicator)
+      if (requestId !== mapDataRequestIdRef.current) return false
       setHexData(duckDbData)
+      return true
     },
     [ensureDuckDbClient]
   )
 
   const handleIndicatorChange = React.useCallback(
     async (value: string) => {
-      setSelectedIndicator(value)
+      if (useHexPerformanceFixture) {
+        const fixture = getHexPerformanceFixture()
+        if (!fixture) return
+
+        setSelectedIndicator(value)
+        setHexData(fixture.getHexData(value))
+        return
+      }
 
       if (hexData.length === 0) return
 
+      const requestId = mapDataRequestIdRef.current + 1
+      mapDataRequestIdRef.current = requestId
+
       try {
-        await loadMapData(value)
+        const didUpdate = await loadMapData(value, requestId)
+        if (didUpdate) {
+          setSelectedIndicator(value)
+          setSelectedCellIds(new Set())
+          clearSelectedCellDetails()
+        }
       } catch (error) {
         console.error("DuckDB indicator refresh failed:", error)
       }
     },
-    [hexData.length, loadMapData]
+    [clearSelectedCellDetails, hexData.length, loadMapData, useHexPerformanceFixture]
   )
 
   const handleSelectBin = React.useCallback(

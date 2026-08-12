@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test"
+import { gridDisk, latLngToCell } from "h3-js"
 
 type ZoomPerformanceMetrics = {
   durationMs: number
@@ -18,6 +19,33 @@ declare global {
       stop: () => ZoomPerformanceMetrics
     }
   }
+}
+
+function createHexPerformanceFixture() {
+  const centerCell = latLngToCell(48.13481, 11.57471, 9)
+  return gridDisk(centerCell, 36).map((h3Cell, index) => {
+    const angle = index * 0.017
+    const value = (Math.sin(angle) + 1) / 2
+
+    return {
+      h3_cell: h3Cell,
+      value,
+      compliance_weighted_avg: value,
+      pop: 100 + (index % 90),
+    }
+  })
+}
+
+async function installHexPerformanceFixture(page: Page) {
+  const data = createHexPerformanceFixture()
+
+  await page.addInitScript((hexData) => {
+    ;(window as typeof window & {
+      __hexPerformanceFixture?: unknown
+    }).__hexPerformanceFixture = {
+      getHexData: () => hexData,
+    }
+  }, data)
 }
 
 test.describe.configure({ mode: "serial" })
@@ -101,6 +129,10 @@ async function measureZoomOutScenario(
   page: Page,
   url: string
 ): Promise<ZoomPerformanceMetrics> {
+  if (url.includes("mapPerfFixture=hex")) {
+    await installHexPerformanceFixture(page)
+  }
+
   await page.goto(url)
   const mapCanvas = page.locator("canvas.maplibregl-canvas").first()
   await expect(mapCanvas).toBeVisible()
