@@ -58,35 +58,18 @@ type PoiSource = {
 
 const POI_SOURCES: PoiSource[] = [
   {
-    file: "entrances.parquet",
-    url: getDataFileUrl("entrances.parquet"),
+    file: "entrances.with_names.geoparquet.parquet",
+    url: getDataFileUrl("entrances.with_names.geoparquet.parquet"),
     query: `
       SELECT
         CAST(row_number() OVER () AS VARCHAR) AS poi_id,
-        '' AS name,
+        __NAME_SELECT__ AS name,
         class_b AS category,
         '' AS subtype,
         geom
       FROM poi_src
       WHERE class_b IN (__CATEGORIES__)
         AND geom IS NOT NULL
-    `,
-  },
-  {
-    file: "pois_munich_normalized_v5.parquet",
-    url: "/data/pois_munich_normalized_v5.parquet",
-    query: `
-      SELECT
-        poi_id,
-        COALESCE(name, '') AS name,
-        category,
-        COALESCE(subtype, '') AS subtype,
-        lon,
-        lat
-      FROM poi_src
-      WHERE category IN (__CATEGORIES__)
-        AND lon IS NOT NULL
-        AND lat IS NOT NULL
     `,
   },
 ]
@@ -232,8 +215,14 @@ function buildPixelGridMarkers(
   if (!project) return pois.map(toMarkerRow)
 
   const groups = new Map<string, PoiRow[]>()
+  const ungroupedMarkers: PoiMarkerRow[] = []
 
   for (const poi of pois) {
+    if (poi.category === "park") {
+      ungroupedMarkers.push(toMarkerRow(poi))
+      continue
+    }
+
     const point = project.call(map, [poi.lon, poi.lat])
     const key = `${Math.floor(point.x / pixelSize)}:${Math.floor(point.y / pixelSize)}`
     const group = groups.get(key)
@@ -244,7 +233,7 @@ function buildPixelGridMarkers(
     }
   }
 
-  return [...groups.entries()].map(([key, group]) => {
+  const groupedMarkers = [...groups.entries()].map(([key, group]) => {
     if (group.length === 1) return toMarkerRow(group[0])
 
     const categories = new Set(group.map((poi) => poi.category))
@@ -263,6 +252,8 @@ function buildPixelGridMarkers(
       mixed: category === null,
     }
   })
+
+  return [...ungroupedMarkers, ...groupedMarkers]
 }
 
 function filterPoisOutsideMapControls(
@@ -354,6 +345,16 @@ function toPoiRows(rawRows: RawPoiRow[]): PoiRow[] {
     .filter((row): row is PoiRow => row !== null)
 }
 
+async function hasPoiSourceColumn(conn: duckdb.AsyncDuckDBConnection, columnName: string) {
+  const result = await conn.query("DESCRIBE poi_src")
+  return result
+    .toArray()
+    .some((row) => {
+      const json = row.toJSON() as { column_name?: unknown }
+      return String(json.column_name ?? "").toLowerCase() === columnName.toLowerCase()
+    })
+}
+
 async function loadPois(): Promise<PoiRow[]> {
   if (poiRowsPromise) return poiRowsPromise
 
@@ -362,7 +363,9 @@ async function loadPois(): Promise<PoiRow[]> {
 
     const { createDuckDb } = await import("@/db/duckdb/createDuckDb")
     const { db, conn } = await createDuckDb()
-    const categoriesSql = sqlList([...new Set(POI_CATEGORIES.map((category) => category.value))])
+    const categoryValues = POI_CATEGORIES.map((category) => category.value)
+    const poiRows: PoiRow[] = []
+    let loadedAnySource = false
     let lastError: unknown = null
 
     await conn.query("SET enable_geoparquet_conversion = false")
@@ -382,14 +385,23 @@ async function loadPois(): Promise<PoiRow[]> {
           FROM read_parquet('${source.file}')
         `)
 
-        const result = await conn.query(source.query.replace("__CATEGORIES__", categoriesSql))
-        return toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow))
+        const nameSelect = await hasPoiSourceColumn(conn, "name")
+          ? "COALESCE(CAST(name AS VARCHAR), '')"
+          : "''"
+        const result = await conn.query(
+          source.query
+            .replace("__CATEGORIES__", sqlList([...new Set(categoryValues)]))
+            .replace("__NAME_SELECT__", nameSelect)
+        )
+        loadedAnySource = true
+        poiRows.push(...toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow)))
       } catch (error) {
         lastError = error
         console.warn(`POI parquet source failed: ${source.file}`, error)
       }
     }
 
+    if (loadedAnySource) return poiRows
     throw lastError
   })()
 
@@ -616,7 +628,10 @@ export function PoiPreview() {
 
     return {
       title,
-      lines: [label, ...(object.subtype ? [object.subtype] : [])],
+      lines: [
+        ...(object.name ? [label] : []),
+        ...(object.subtype ? [object.subtype] : []),
+      ],
     }
   }, [])
 
