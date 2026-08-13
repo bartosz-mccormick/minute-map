@@ -2,6 +2,10 @@ import type { MutableRefObject, ReactNode } from "react"
 
 export type Color = [number, number, number]
 
+export type BinConfig =
+  | { method: "quantile"; nBins: number }
+  | { method: "equal_interval"; nBins: number; min?: number; max?: number }
+
 export interface Destination {
   value: string
   label: string
@@ -64,6 +68,7 @@ export type DrawEvent = { features: GeoJSON.Feature[] }
 export interface HexMapCell {
   h3_cell: string
   value?: number | null
+  bin?: number | null
   compliance_weighted_avg?: number | null
   [key: string]: unknown
 }
@@ -71,6 +76,7 @@ export interface HexMapCell {
 export interface HexMapDeckObject {
   h3_cell: string
   value?: number | null
+  bin?: number | null
   compliance_weighted_avg?: number | null
   [key: string]: unknown
 }

@@ -144,11 +144,13 @@ function createHexFeatureCollection({
     type: "FeatureCollection",
     features: hexData.map((row) => {
       const value = toNullableFiniteNumber(row.value)
+      const bin = toNullableFiniteNumber(row.bin)
       const complianceWeightedAvg = toNullableFiniteNumber(row.compliance_weighted_avg)
       const pop = toNullableFiniteNumber(row.pop)
       const renderRow: HexMapCell = {
         h3_cell: String(row.h3_cell),
         value,
+        bin,
         compliance_weighted_avg: complianceWeightedAvg,
         pop,
       }
@@ -168,6 +170,7 @@ function createHexFeatureCollection({
         properties: {
           h3_cell: renderRow.h3_cell,
           value,
+          bin,
           compliance_weighted_avg: complianceWeightedAvg,
           pop,
           fillColor: fillColorOverride ?? toRgbaString(baseColor, 1),

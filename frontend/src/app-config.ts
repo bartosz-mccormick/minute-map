@@ -1,6 +1,7 @@
 import presetsConfig from "@/config/presets.json"
 import type {
   Color,
+  BinConfig,
   Destination,
   NestedOption,
   PresetDefinition,
@@ -28,8 +29,8 @@ export const getDataFileUrl = (filename: string): string =>
 
 export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 export const MAX_TT = 30
+export const DEFAULT_QUANTILE_BIN_COUNT = 5
 
-export const COMPLIANCE_FILL_BOUNDS = [0, 0.2, 0.4, 0.6, 0.8, 1]
 export const COMPLIANCE_FILL_COLORS: Color[] = [
   [68, 1, 84],
   [59, 82, 139],
@@ -38,7 +39,6 @@ export const COMPLIANCE_FILL_COLORS: Color[] = [
   [253, 231, 37],
 ]
 
-export const TRAVEL_TIME_FILL_BOUNDS = [0, 5, 10, 15, 20, 25, 30]
 export const TRAVEL_TIME_FILL_COLORS: Color[] = [
   [253, 231, 37],
   [144, 215, 67],
@@ -48,9 +48,6 @@ export const TRAVEL_TIME_FILL_COLORS: Color[] = [
   [68, 57, 131],
   [68, 1, 84],
 ]
-
-export const OPPORTUNITIES_FILL_BOUNDS = [0, 1, 2, 5, 10, 20, 50]
-export const OPPORTUNITIES_FILL_COLORS: Color[] = TRAVEL_TIME_FILL_COLORS
 
 export const DESTINATIONS: Destination[] = [
   { value: "grocery", label: "Supermarket", icon: "🛒" },
@@ -112,6 +109,30 @@ export function fmt(v: number) {
   return v.toFixed(1).replace(/\.0$/, "")
 }
 
+function interpolateColor(start: Color, end: Color, amount: number): Color {
+  return [
+    Math.round(start[0] + (end[0] - start[0]) * amount),
+    Math.round(start[1] + (end[1] - start[1]) * amount),
+    Math.round(start[2] + (end[2] - start[2]) * amount),
+  ]
+}
+
+function sampleColors(palette: readonly Color[], count: number): Color[] {
+  if (count <= 0) return []
+  if (count === 1) return [palette[0]]
+  if (count === palette.length) return [...palette]
+
+  const maxPaletteIndex = palette.length - 1
+  return Array.from({ length: count }, (_, index) => {
+    const position = (index / (count - 1)) * maxPaletteIndex
+    const lowerIndex = Math.floor(position)
+    const upperIndex = Math.ceil(position)
+    const lower = palette[lowerIndex]
+    const upper = palette[upperIndex]
+    return interpolateColor(lower, upper, position - lowerIndex)
+  })
+}
+
 export const presetsByCity = presetsConfig as unknown as PresetsConfigByCity
 
 export const PRESETS: Record<string, PresetDefinition> = {}
@@ -133,18 +154,26 @@ export const PRESET_NESTED_OPTIONS: NestedOption[] = [
   })),
 ]
 
-export function getIndicatorFillConfig(indicator: string | undefined): { bounds: number[]; colors: Color[] } {
-  if (indicator?.endsWith("::n_total")) {
-    return {
-      bounds: OPPORTUNITIES_FILL_BOUNDS,
-      colors: OPPORTUNITIES_FILL_COLORS,
-    }
+export function getIndicatorBinConfig(indicator: string | undefined): BinConfig {
+  if (indicator === "compliance_weighted_avg" || indicator?.endsWith("::compliance")) {
+    return { method: "equal_interval", nBins: DEFAULT_QUANTILE_BIN_COUNT, min: 0, max: 1 }
   }
 
-  const isCompliance = indicator?.includes("compliance")
+  return { method: "quantile", nBins: DEFAULT_QUANTILE_BIN_COUNT }
+}
+
+export function getIndicatorFillColors(indicator: string | undefined, nBins: number): Color[] {
+  if (indicator?.includes("min_travel_time")) {
+    return sampleColors(TRAVEL_TIME_FILL_COLORS, nBins)
+  }
+
+  return sampleColors(COMPLIANCE_FILL_COLORS, nBins)
+}
+
+export function getIndicatorFillConfig(indicator: string | undefined, bounds: number[]): { bounds: number[]; colors: Color[] } {
   return {
-    bounds: isCompliance ? COMPLIANCE_FILL_BOUNDS : TRAVEL_TIME_FILL_BOUNDS,
-    colors: isCompliance ? COMPLIANCE_FILL_COLORS : TRAVEL_TIME_FILL_COLORS,
+    bounds,
+    colors: getIndicatorFillColors(indicator, bounds.length - 1),
   }
 }
 

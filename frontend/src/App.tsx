@@ -46,6 +46,7 @@ import {
 import type { HexMapCell, HexMapDeckObject, MapboxDrawApi, NestedOption, Threshold, Weight } from "@/app-types"
 import type { DuckDbClient } from "./db/duckdb/createDuckDb"
 import type { CellDetailRow } from "./db/duckdb/runCalculations"
+import type { MapFixtureIndicatorRows } from "./db/duckdb/mapDataFixture"
 
 const travelScenarios = [
   { value: "current", label: "Current" },
@@ -82,6 +83,31 @@ function getHexPerformanceFixture() {
   return window.__hexPerformanceFixture ?? null
 }
 
+function collectIndicatorValues(indicators: NestedOption[]): string[] {
+  const values: string[] = []
+
+  for (const indicator of indicators) {
+    if (indicator.children && indicator.children.length > 0) {
+      values.push(...collectIndicatorValues(indicator.children))
+    } else {
+      values.push(indicator.value)
+    }
+  }
+
+  return values
+}
+
+function getFixtureIndicatorRows(fixture: HexPerformanceFixtureApi): MapFixtureIndicatorRows[] {
+  const indicatorValues = fixture.indicators
+    ? collectIndicatorValues(fixture.indicators)
+    : ["compliance_weighted_avg"]
+
+  return indicatorValues.map((indicator) => ({
+    indicator,
+    rows: fixture.getHexData(indicator),
+  }))
+}
+
 export default function App() {
   const mapPerformanceMode = getMapPerformanceMode()
   const isBaseMapOnly = mapPerformanceMode === "base"
@@ -100,6 +126,8 @@ export default function App() {
   )
 
   const [hexData, setHexData] = React.useState<HexMapCell[]>([])
+  const [activeBounds, setActiveBounds] = React.useState<number[]>([])
+  const [mapDataError, setMapDataError] = React.useState<string | null>("Run analysis to load map data.")
   const [selectedCellIds, setSelectedCellIds] = React.useState<Set<string>>(() => new Set())
   const [selectedCellDetails, setSelectedCellDetails] = React.useState<CellDetailRow[]>([])
   const [selectedCellDetailsCellId, setSelectedCellDetailsCellId] = React.useState<string | null>(null)
@@ -108,24 +136,19 @@ export default function App() {
     () => hexData.filter((cell) => selectedCellIds.has(cell.h3_cell)),
     [hexData, selectedCellIds]
   )
+  const activeFillConfig = React.useMemo(
+    () => getIndicatorFillConfig(selectedIndicator, activeBounds),
+    [activeBounds, selectedIndicator]
+  )
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
   const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
   const duckDbInitPromiseRef = React.useRef<Promise<DuckDbClient> | null>(null)
+  const hexPerformanceFixtureInstallPromiseRef = React.useRef<Promise<void> | null>(null)
+  const hexPerformanceFixtureInitialLoadStartedRef = React.useRef(false)
   const mapDataRequestIdRef = React.useRef(0)
   const [loading, setLoading] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!useHexPerformanceFixture || hexData.length > 0) return
-    const fixture = getHexPerformanceFixture()
-    if (!fixture) return
-
-    setHexData(fixture.getHexData(selectedIndicator))
-    if (fixture.indicators) {
-      setAvailableIndicators(fixture.indicators)
-    }
-  }, [hexData.length, selectedIndicator, useHexPerformanceFixture])
 
   const polygonSelectedCellIds = React.useMemo(() => {
     if (drawnPolygons.length === 0 || hexData.length === 0) return new Set<string>()
@@ -161,12 +184,12 @@ export default function App() {
 
     if (!duckDbInitPromiseRef.current) {
       duckDbInitPromiseRef.current = (async () => {
-        const [{ createDuckDb }, { setupDb }] = await Promise.all([
-          import("./db/duckdb/createDuckDb"),
-          import("./db/duckdb/setupDb"),
-        ])
+        const { createDuckDb } = await import("./db/duckdb/createDuckDb")
         const client = await createDuckDb()
-        await setupDb(client)
+        if (!useHexPerformanceFixture) {
+          const { setupDb } = await import("./db/duckdb/setupDb")
+          await setupDb(client)
+        }
 
         duckDbClientRef.current = client
         return client
@@ -180,7 +203,7 @@ export default function App() {
       console.error("DuckDB initialization failed:", error)
       throw error
     }
-  }, [])
+  }, [useHexPerformanceFixture])
 
   React.useEffect(() => {
     void ensureDuckDbClient()
@@ -250,31 +273,79 @@ export default function App() {
     async (indicator: string, requestId = mapDataRequestIdRef.current) => {
       const client = await ensureDuckDbClient()
       const { getMapData } = await import("./db/duckdb/runCalculations")
-      const duckDbData = await getMapData(client.conn, indicator)
+      const { rows, bounds } = await getMapData(client.conn, indicator)
       if (requestId !== mapDataRequestIdRef.current) return false
-      setHexData(duckDbData)
+      setHexData(rows)
+      setActiveBounds(bounds)
+      setMapDataError(null)
       return true
     },
     [ensureDuckDbClient]
   )
 
+  const ensureHexPerformanceFixtureInstalled = React.useCallback(async () => {
+    if (!useHexPerformanceFixture) return
+    if (hexPerformanceFixtureInstallPromiseRef.current) {
+      await hexPerformanceFixtureInstallPromiseRef.current
+      return
+    }
+
+    const fixture = getHexPerformanceFixture()
+    if (!fixture) throw new Error("Hex performance fixture is not installed.")
+
+    if (fixture.indicators) {
+      setAvailableIndicators(fixture.indicators)
+    }
+
+    hexPerformanceFixtureInstallPromiseRef.current = (async () => {
+      const client = await ensureDuckDbClient()
+      const { installMapDataFixture } = await import("./db/duckdb/mapDataFixture")
+      await installMapDataFixture(client.conn, getFixtureIndicatorRows(fixture))
+    })()
+
+    try {
+      await hexPerformanceFixtureInstallPromiseRef.current
+    } catch (error) {
+      hexPerformanceFixtureInstallPromiseRef.current = null
+      throw error
+    }
+  }, [ensureDuckDbClient, useHexPerformanceFixture])
+
+  React.useEffect(() => {
+    if (
+      !useHexPerformanceFixture ||
+      hexData.length > 0 ||
+      hexPerformanceFixtureInitialLoadStartedRef.current
+    ) return
+
+    hexPerformanceFixtureInitialLoadStartedRef.current = true
+    const requestId = mapDataRequestIdRef.current + 1
+    mapDataRequestIdRef.current = requestId
+
+    void (async () => {
+      try {
+        await ensureHexPerformanceFixtureInstalled()
+        await loadMapData(selectedIndicator, requestId)
+      } catch (error) {
+        hexPerformanceFixtureInitialLoadStartedRef.current = false
+        setHexData([])
+        setActiveBounds([])
+        setMapDataError(error instanceof Error ? error.message : "Map data could not be loaded.")
+      }
+    })()
+  }, [ensureHexPerformanceFixtureInstalled, hexData.length, loadMapData, selectedIndicator, useHexPerformanceFixture])
+
   const handleIndicatorChange = React.useCallback(
     async (value: string) => {
-      if (useHexPerformanceFixture) {
-        const fixture = getHexPerformanceFixture()
-        if (!fixture) return
-
-        setSelectedIndicator(value)
-        setHexData(fixture.getHexData(value))
-        return
-      }
-
-      if (hexData.length === 0) return
+      if (!useHexPerformanceFixture && hexData.length === 0) return
 
       const requestId = mapDataRequestIdRef.current + 1
       mapDataRequestIdRef.current = requestId
 
       try {
+        if (useHexPerformanceFixture) {
+          await ensureHexPerformanceFixtureInstalled()
+        }
         const didUpdate = await loadMapData(value, requestId)
         if (didUpdate) {
           setSelectedIndicator(value)
@@ -283,36 +354,32 @@ export default function App() {
         }
       } catch (error) {
         console.error("DuckDB indicator refresh failed:", error)
+        setHexData([])
+        setActiveBounds([])
+        setMapDataError(error instanceof Error ? error.message : "Map data could not be loaded.")
       }
     },
-    [clearSelectedCellDetails, hexData.length, loadMapData, useHexPerformanceFixture]
+    [clearSelectedCellDetails, ensureHexPerformanceFixtureInstalled, hexData.length, loadMapData, useHexPerformanceFixture]
   )
 
   const handleSelectBin = React.useCallback(
-    (bin: { min: number; max: number } | null) => {
-      if (bin === null) {
+    (binIndex: number | null) => {
+      if (binIndex === null) {
         setSelectedCellIds(new Set())
         clearSelectedCellDetails()
         return
       }
 
-      const bounds = getIndicatorFillConfig(selectedIndicator).bounds
-      const isLastBin = bounds.length > 0 && bin.max === bounds[bounds.length - 1]
+      const bounds = activeBounds
       const startedAt = performance.now()
-      const cellsInBinIds = new Set<string>()
-
-      for (const cell of hexData) {
-        const value = getValue(cell)
-        if (value !== null && value >= bin.min && (value < bin.max || (isLastBin && value === bin.max))) {
-          cellsInBinIds.add(cell.h3_cell)
-        }
-      }
+      const cellsInBin = hexData.filter((cell) => cell.bin === binIndex)
+      const cellsInBinIds = new Set(cellsInBin.map((cell) => cell.h3_cell))
 
       logSelectionTiming("handleSelectBin.filter", startedAt, {
         cells_total: hexData.length,
         cells_selected: cellsInBinIds.size,
-        bin_min: bin.min,
-        bin_max: bin.max,
+        bin_min: bounds[binIndex],
+        bin_max: bounds[binIndex + 1],
       })
 
       if (areSetsEqual(selectedCellIds, cellsInBinIds)) {
@@ -334,11 +401,12 @@ export default function App() {
       setSelectedCellIds(cellsInBinIds)
       clearSelectedCellDetails()
     },
-    [clearSelectedCellDetails, hexData, selectedCellIds, selectedIndicator, getValue]
+    [activeBounds, clearSelectedCellDetails, hexData, selectedCellIds]
   )
 
   const handleAnalyze = async () => {
     setLoading(true)
+    setMapDataError(null)
 
     try {
       const client = await ensureDuckDbClient()
@@ -357,6 +425,9 @@ export default function App() {
     } catch (error) {
       console.error("DuckDB analysis failed:", error)
       setAvailableIndicators([])
+      setHexData([])
+      setActiveBounds([])
+      setMapDataError(error instanceof Error ? error.message : "Analysis failed.")
     } finally {
       setLoading(false)
     }
@@ -426,8 +497,8 @@ export default function App() {
       <HexMap
         hexData={hexData}
         indicator={selectedIndicator}
-        fillBounds={getIndicatorFillConfig(selectedIndicator).bounds}
-        fillColors={getIndicatorFillConfig(selectedIndicator).colors}
+        fillBounds={activeFillConfig.bounds}
+        fillColors={activeFillConfig.colors}
         gridOpacity={(100 - gridTransparency) / 100}
         selectedCellIds={selectedCellIds}
         drawnPolygons={drawnPolygons}
@@ -633,25 +704,31 @@ export default function App() {
             className={MAP_OVERLAY_PANEL_TITLE_CLASS}
             textClassName={MAP_OVERLAY_PANEL_TITLE_CLASS}
           />
-          <LegendBands
-            bounds={getIndicatorFillConfig(selectedIndicator).bounds}
-            colors={getIndicatorFillConfig(selectedIndicator).colors}
-          />
+          {mapDataError ? (
+            <div className={MAP_OVERLAY_META_TEXT_CLASS}>{mapDataError}</div>
+          ) : (
+            <LegendBands
+              bounds={activeFillConfig.bounds}
+              colors={activeFillConfig.colors}
+            />
+          )}
         </CardContent>
       </Card>
       )}
 
-      {(hexData.length > 0 || selectedCellDetailsCellId) && (
+      {((hexData.length > 0 && activeBounds.length > 1) || selectedCellDetailsCellId) && (
         <div className="fixed bottom-10 right-4 z-10 w-[380px] space-y-2">
-          <ComplianceStats
-            data={hexData}
-            bounds={getIndicatorFillConfig(selectedIndicator).bounds}
-            getValue={getValue}
-            onSelectBin={handleSelectBin}
-            selectedCells={selectedCellsData}
-            formatValue={fmt}
-            className="bg-white shadow-lg w-full"
-          />
+          {hexData.length > 0 && activeBounds.length > 1 && (
+            <ComplianceStats
+              data={hexData}
+              bounds={activeFillConfig.bounds}
+              getValue={getValue}
+              onSelectBin={handleSelectBin}
+              selectedCells={selectedCellsData}
+              formatValue={fmt}
+              className="bg-white shadow-lg w-full"
+            />
+          )}
 
           {selectedCellDetailsCellId && (
             <Card className="bg-white shadow-lg w-full max-h-48 overflow-y-auto">

@@ -136,6 +136,10 @@ async function measureZoomOutScenario(
   await page.goto(url)
   const mapCanvas = page.locator("canvas.maplibregl-canvas").first()
   await expect(mapCanvas).toBeVisible()
+  if (url.includes("mapPerfFixture=hex")) {
+    await expect(page.getByText("Run analysis to load map data.")).toHaveCount(0)
+    await expect(page.getByText("Full area")).toBeVisible()
+  }
   await page.waitForTimeout(2500)
 
   await installZoomPerfProbe(page)

@@ -8,9 +8,11 @@ import {
   MAP_OVERLAY_META_TEXT_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
+import { buildBins, calculateBinnedStats, type BinRange } from "@/lib/binning"
 
 type HexItem = {
   pop?: number
+  bin?: number | null
   compliance_weighted_avg?: number | null
   h3_cell?: string
   [key: string]: unknown
@@ -22,7 +24,7 @@ interface ComplianceStatsProps {
   bounds: number[]
   /** Get the indicator value from a hex item (e.g. compliance or travel time). Null = missing, excluded from stats. */
   getValue: (item: HexItem) => number | null
-  onSelectBin: (bin: { min: number; max: number } | null) => void
+  onSelectBin: (binIndex: number | null) => void
   /** When 1+ cells are selected (click or polygon), show their distribution in the plot */
   selectedCells?: HexItem[]
   /** Format axis labels (default: one decimal, no trailing .0) */
@@ -30,20 +32,8 @@ interface ComplianceStatsProps {
   className?: string
 }
 
-function buildBins(bounds: number[], formatValue: (v: number) => string): { range: string; min: number; max: number }[] {
-  return bounds.slice(0, -1).map((min, i) => {
-    const max = bounds[i + 1]
-    return { range: `${formatValue(min)}–${formatValue(max)}`, min, max }
-  })
-}
-
-function assignBin(value: number, bins: { min: number; max: number }[]): number {
-  for (let i = 0; i < bins.length; i++) {
-    const b = bins[i]
-    const isLast = i === bins.length - 1
-    if (value >= b.min && (value < b.max || (isLast && value === b.max))) return i
-  }
-  return -1
+type DisplayBin = BinRange & {
+  range: string
 }
 
 const COLOR_DEFAULT = "#3b82f6"
@@ -92,36 +82,20 @@ export function ComplianceStats({
   className = "fixed bottom-4 right-4 z-10 bg-white shadow-lg w-[380px]",
 }: ComplianceStatsProps) {
   const [plotType, setPlotType] = React.useState<(typeof PLOT_TYPES)[number]["value"]>("bar-chart")
-  const bins = React.useMemo(() => buildBins(bounds, formatValue), [bounds, formatValue])
+  const bins = React.useMemo<DisplayBin[]>(
+    () => buildBins(bounds).map((bin) => ({
+      ...bin,
+      range: `${formatValue(bin.min)}–${formatValue(bin.max)}`,
+    })),
+    [bounds, formatValue]
+  )
 
   const stats = React.useMemo(() => {
-    const computeStats = (items: HexItem[]) => {
-      let totalScore = 0
-      let totalPopulation = 0
-      const binPop = bins.map(() => 0)
-      const values: number[] = []
-
-      items.forEach((item) => {
-        const value = getValue(item)
-        if (value === null) return
-        const pop = item.pop || 0
-        const idx = assignBin(value, bins)
-        totalScore += pop * value
-        totalPopulation += pop
-        values.push(value)
-        if (idx >= 0) binPop[idx] += pop
-      })
-
-      const weightedAvg = totalPopulation > 0 ? totalScore / totalPopulation : 0
-      const min = values.length > 0 ? Math.min(...values) : 0
-      const max = values.length > 0 ? Math.max(...values) : 0
-
-      return { weightedAvg, binPop, min, max, totalPopulation }
-    }
-
-    const all = computeStats(data)
+    const all = calculateBinnedStats(data, bins.length, getValue)
     const selection =
-      selectedCells && selectedCells.length > 0 ? computeStats(selectedCells) : null
+      selectedCells && selectedCells.length > 0
+        ? calculateBinnedStats(selectedCells, bins.length, getValue)
+        : null
 
     return {
       all,
@@ -285,11 +259,10 @@ export function ComplianceStats({
           params.dataIndex === undefined ||
           params.seriesIndex !== 0
         ) return
-        const bin = bins[params.dataIndex]
-        onSelectBin({ min: bin.min, max: bin.max })
+        onSelectBin(params.dataIndex)
       },
     }),
-    [onSelectBin, bins]
+    [onSelectBin]
   )
 
   if (data.length === 0) return null

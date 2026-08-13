@@ -1,11 +1,18 @@
-import { ALWAYS_AVAILABLE_INDICATORS } from "@/app-config"
+import { ALWAYS_AVAILABLE_INDICATORS, getIndicatorBinConfig } from "@/app-config"
+import type { BinConfig } from "@/app-types"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"
 
 export type MapRow = {
   h3_cell: string
   pop: number
   value: number | null
+  bin: number | null
   compliance_weighted_avg: number | null
+}
+
+export type MapDataResult = {
+  rows: MapRow[]
+  bounds: number[]
 }
 
 export type CellDetailRow = {
@@ -21,6 +28,7 @@ type RawMapRow = {
   h3_cell: string
   pop: number
   value: number | null
+  bin: number | null
   compliance_weighted_avg: number | null
 }
 
@@ -35,6 +43,26 @@ type RawCellDetailRow = {
 
 function sqlString(value: string) {
   return `'${value.replace(/'/g, "''")}'`
+}
+
+function sqlNumber(value: number) {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Invalid numeric SQL value: ${value}`)
+  }
+  return String(value)
+}
+
+function uniqueSortedBounds(bounds: number[]) {
+  const unique: number[] = []
+
+  for (const bound of bounds.filter(Number.isFinite).sort((a, b) => a - b)) {
+    if (unique.length === 0 || bound > unique[unique.length - 1]) {
+      unique.push(bound)
+    }
+  }
+
+  if (unique.length === 1) return [unique[0], unique[0]]
+  return unique
 }
 
 function parseIndicator(indicator: string) {
@@ -62,6 +90,117 @@ function parseIndicator(indicator: string) {
   return { amenity, mode, metric }
 }
 
+async function getNonNullValueCount(conn: AsyncDuckDBConnection) {
+  const result = await conn.query(`
+    SELECT COUNT(*)::INTEGER AS n_values
+    FROM map_data
+    WHERE value IS NOT NULL
+  `)
+  const row = result.toArray()[0]?.toJSON() as { n_values?: number } | undefined
+  return row?.n_values ?? 0
+}
+
+async function calculateQuantileBounds(conn: AsyncDuckDBConnection, nBins: number) {
+  const probabilities = Array.from({ length: nBins + 1 }, (_, index) => index / nBins)
+  const bounds: number[] = []
+
+  for (const probability of probabilities) {
+    const result = await conn.query(`
+      SELECT quantile_cont(value, ${sqlNumber(probability)}) AS bound
+      FROM map_data
+      WHERE value IS NOT NULL
+    `)
+    const row = result.toArray()[0]?.toJSON() as { bound?: number | null } | undefined
+    if (row?.bound !== null && row?.bound !== undefined) bounds.push(row.bound)
+  }
+
+  return uniqueSortedBounds(bounds)
+}
+
+async function calculateEqualIntervalBounds(
+  conn: AsyncDuckDBConnection,
+  nBins: number,
+  domain?: { min: number; max: number }
+) {
+  if (domain) {
+    if (domain.min === domain.max) return [domain.min, domain.max]
+    const step = (domain.max - domain.min) / nBins
+    return Array.from({ length: nBins + 1 }, (_, index) => domain.min + step * index)
+  }
+
+  const result = await conn.query(`
+    SELECT MIN(value) AS min_value, MAX(value) AS max_value
+    FROM map_data
+    WHERE value IS NOT NULL
+  `)
+  const row = result.toArray()[0]?.toJSON() as { min_value?: number | null; max_value?: number | null } | undefined
+  const min = row?.min_value
+  const max = row?.max_value
+  if (min === null || min === undefined || max === null || max === undefined) return []
+  if (min === max) return [min, max]
+
+  const step = (max - min) / nBins
+  return Array.from({ length: nBins + 1 }, (_, index) => min + step * index)
+}
+
+async function calculateMapDataBounds(conn: AsyncDuckDBConnection, config: BinConfig) {
+  const nValues = await getNonNullValueCount(conn)
+  if (nValues === 0) {
+    throw new Error("No data values are available for the selected indicator.")
+  }
+
+  switch (config.method) {
+    case "quantile":
+      if (config.nBins <= 0) {
+        throw new Error("Quantile binning requires a positive number of bins.")
+      }
+      return calculateQuantileBounds(conn, config.nBins)
+    case "equal_interval":
+      if (config.nBins <= 0) {
+        throw new Error("Equal interval binning requires a positive number of bins.")
+      }
+      if (config.min !== undefined && config.max !== undefined) {
+        return calculateEqualIntervalBounds(conn, config.nBins, { min: config.min, max: config.max })
+      }
+      return calculateEqualIntervalBounds(conn, config.nBins)
+  }
+}
+
+function buildBinCaseSql(bounds: number[]) {
+  if (bounds.length < 2) {
+    throw new Error("Could not calculate bin bounds for the selected indicator.")
+  }
+
+  if (bounds.length === 2 && bounds[0] === bounds[1]) {
+    return `CASE WHEN value IS NULL THEN NULL WHEN value = ${sqlNumber(bounds[0])} THEN 0 ELSE -1 END AS bin`
+  }
+
+  const clauses = bounds.slice(0, -1).map((min, index) => {
+    const max = bounds[index + 1]
+    const isLastBin = index === bounds.length - 2
+    const upperCheck = isLastBin
+      ? `(value < ${sqlNumber(max)} OR value = ${sqlNumber(max)})`
+      : `value < ${sqlNumber(max)}`
+    return `WHEN value >= ${sqlNumber(min)} AND ${upperCheck} THEN ${index}`
+  })
+
+  return `CASE WHEN value IS NULL THEN NULL ${clauses.join(" ")} ELSE -1 END AS bin`
+}
+
+async function addBinsToMapData(conn: AsyncDuckDBConnection, bounds: number[]) {
+  await conn.query(`
+    CREATE OR REPLACE TEMP TABLE map_data AS
+    SELECT
+      h3_cell,
+      pop,
+      compliance_weighted_avg,
+      value,
+      ${buildBinCaseSql(bounds)}
+    FROM map_data
+    ORDER BY h3_cell
+  `)
+}
+
 export async function runCalculations(conn: AsyncDuckDBConnection): Promise<void> {
   // main query (amenity-mode)
   await conn.query(`
@@ -87,7 +226,7 @@ export async function runCalculations(conn: AsyncDuckDBConnection): Promise<void
 export async function getMapData(
   conn: AsyncDuckDBConnection,
   indicator = "compliance_weighted_avg"
-): Promise<MapRow[]> {
+): Promise<MapDataResult> {
   const parsedIndicator = parseIndicator(indicator)
   //console.log(parsedIndicator)
   const mapRowsSql =
@@ -125,18 +264,23 @@ export async function getMapData(
       
   await conn.query(mapRowsSql);
 
+  const bounds = await calculateMapDataBounds(conn, getIndicatorBinConfig(indicator))
+  await addBinsToMapData(conn, bounds)
+
   const result = await conn.query(`SELECT * FROM map_data`)
 
-
-  return result.toArray().map((row) => {
+  const rows = result.toArray().map((row) => {
     const raw = row.toJSON() as RawMapRow
     return {
       h3_cell: raw.h3_cell,
       pop: raw.pop,
       value: raw.value ?? null,
+      bin: raw.bin ?? null,
       compliance_weighted_avg: raw.compliance_weighted_avg ?? null,
     }
   })
+
+  return { rows, bounds }
 }
 
 export async function getCellDetails(

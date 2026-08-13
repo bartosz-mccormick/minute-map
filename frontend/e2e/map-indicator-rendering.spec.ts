@@ -89,20 +89,26 @@ async function getMapCanvasSnapshot(page: Page) {
   return mapCanvas.screenshot()
 }
 
+async function expectMapDataLoaded(page: Page, triggerName: RegExp | string) {
+  await expect(page.getByText("Run analysis to load map data.")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: triggerName })).toBeVisible()
+  await expect(page.getByText("Full area")).toBeVisible()
+}
+
 async function openIndicatorMenu(page: Page) {
   await page.getByRole("button", { name: INDICATOR_TRIGGER_NAME }).click()
 }
 
 async function selectTopLevelIndicator(page: Page, label: string) {
   await openIndicatorMenu(page)
-  await page.getByRole("menuitem", { name: label }).click()
+  await page.getByRole("menuitem", { name: label, exact: true }).click()
 }
 
 async function selectBarWalkIndicator(page: Page, label: string) {
   await openIndicatorMenu(page)
-  await page.getByRole("menuitem", { name: "Bar" }).hover()
-  await page.getByRole("menuitem", { name: "Walking (4 km/h)" }).hover()
-  await page.getByRole("menuitem", { name: label }).click()
+  await page.getByRole("menuitem", { name: "Bar", exact: true }).hover()
+  await page.getByRole("menuitem", { name: "Walking (4 km/h)", exact: true }).hover()
+  await page.getByRole("menuitem", { name: label, exact: true }).click()
 }
 
 test("indicator changes update the hex map canvas", async ({ page }) => {
@@ -120,25 +126,31 @@ test("indicator changes update the hex map canvas", async ({ page }) => {
   const mapCanvas = page.locator("canvas.maplibregl-canvas").first()
   await expect(mapCanvas).toBeVisible()
   await expect(page.getByText("X-Min City Compliance")).toBeVisible()
+  await expectMapDataLoaded(page, "X-Min City Compliance")
 
   const checks: Array<{
     label: string
+    triggerName: RegExp | string
     select: () => Promise<void>
   }> = [
     {
       label: "Population",
+      triggerName: "Population",
       select: () => selectTopLevelIndicator(page, "Population"),
     },
     {
       label: "Bar Walking Compliance",
+      triggerName: /Bar:\s*Walking.*Compliance/,
       select: () => selectBarWalkIndicator(page, "Compliance"),
     },
     {
       label: "Bar Walking Time to Nearest",
+      triggerName: /Bar:\s*Walking.*Time to Nearest/,
       select: () => selectBarWalkIndicator(page, "Time to Nearest"),
     },
     {
       label: "Bar Walking Number of Opportunities",
+      triggerName: /Bar:\s*Walking.*Number of Opportunities/,
       select: () => selectBarWalkIndicator(page, "Number of Opportunities"),
     },
   ]
@@ -147,7 +159,7 @@ test("indicator changes update the hex map canvas", async ({ page }) => {
     const before = await getMapCanvasSnapshot(page)
 
     await check.select()
-    await page.waitForTimeout(350)
+    await expectMapDataLoaded(page, check.triggerName)
 
     const after = await getMapCanvasSnapshot(page)
     const changedBytes = countChangedBytes(before, after)
@@ -155,8 +167,8 @@ test("indicator changes update the hex map canvas", async ({ page }) => {
     expect(changedBytes, `${check.label} should repaint the map canvas`).toBeGreaterThan(500)
   }
 
-  await expect(page.getByText(/20.*50/)).toBeVisible()
-  await expect(page.getByText(/25.*30/)).toHaveCount(0)
+  await expect(page.getByText(/24.*30/)).toBeVisible()
+  await expect(page.getByText(/20.*50/)).toHaveCount(0)
 
   expect(
     consoleErrors.filter((message) => message.includes("DuckDB indicator refresh failed"))
