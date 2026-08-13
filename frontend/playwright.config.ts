@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   testIgnore: ["**/*.perf.spec.ts"],
   timeout: 30_000,
   use: {

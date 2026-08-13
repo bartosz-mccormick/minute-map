@@ -6,7 +6,7 @@ import {
   isHexLayerPickable,
   shouldRenderMapOverlay,
   shouldUseHexPerformanceFixture,
-} from "./map-performance"
+} from "@/components/map-performance"
 
 describe("getMapPerformanceMode", () => {
   it("uses normal map mode by default", () => {

@@ -20,6 +20,10 @@ import {
 } from "@/components/map-performance"
 import { LegendBands } from "./components/legend-bands"
 import { PoiPreview } from "./components/poi_preview"
+import { useDuckDbClient } from "@/hooks/use-duckdb-client"
+import { useMapIndicatorState } from "@/hooks/use-map-indicator-state"
+import { useRunAnalysis } from "@/hooks/use-run-analysis"
+import { useSelectedCellDetails } from "@/hooks/use-selected-cell-details"
 import {
   MAP_OVERLAY_BUTTON_TEXT_CLASS,
   MAP_OVERLAY_BODY_MAIN_CLASS,
@@ -30,11 +34,8 @@ import {
   MAP_OVERLAY_SECTION_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import {
-  ALWAYS_AVAILABLE_INDICATORS,
-  buildIndicatorOptions,
   DESTINATIONS,
   fmt,
-  getIndicatorFillConfig,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
   INITIAL_WEIGHTS,
@@ -43,69 +44,15 @@ import {
   PRESETS,
   TRANSPORT_MODES,
 } from "@/app-config"
-import type { HexMapCell, HexMapDeckObject, MapboxDrawApi, NestedOption, Threshold, Weight } from "@/app-types"
-import type { DuckDbClient } from "./db/duckdb/createDuckDb"
-import type { CellDetailRow } from "./db/duckdb/runCalculations"
-import type { MapFixtureIndicatorRows } from "./db/duckdb/mapDataFixture"
+import type { MapboxDrawApi, Threshold, Weight } from "@/app-types"
 
 const travelScenarios = [
   { value: "current", label: "Current" },
-  // { value: "bikesharing-a", label: "Bike Sharing System Alternative A" },
-  // { value: "bikesharing-b", label: "Bike Sharing System Alternative B" },
 ]
-
-type HexPerformanceFixtureApi = {
-  indicators?: NestedOption[]
-  getHexData: (indicator: string) => HexMapCell[]
-}
-
-declare global {
-  interface Window {
-    __hexPerformanceFixture?: HexPerformanceFixtureApi
-  }
-}
 
 function logSelectionTiming(label: string, startedAt: number, details?: Record<string, unknown>) {
   const elapsedMs = performance.now() - startedAt
   console.info(`[selection-timing] ${label}: ${elapsedMs.toFixed(2)}ms`, details ?? {})
-}
-
-function areSetsEqual<T>(a: Set<T>, b: Set<T>) {
-  if (a.size !== b.size) return false
-  for (const value of a) {
-    if (!b.has(value)) return false
-  }
-  return true
-}
-
-function getHexPerformanceFixture() {
-  if (typeof window === "undefined") return null
-  return window.__hexPerformanceFixture ?? null
-}
-
-function collectIndicatorValues(indicators: NestedOption[]): string[] {
-  const values: string[] = []
-
-  for (const indicator of indicators) {
-    if (indicator.children && indicator.children.length > 0) {
-      values.push(...collectIndicatorValues(indicator.children))
-    } else {
-      values.push(indicator.value)
-    }
-  }
-
-  return values
-}
-
-function getFixtureIndicatorRows(fixture: HexPerformanceFixtureApi): MapFixtureIndicatorRows[] {
-  const indicatorValues = fixture.indicators
-    ? collectIndicatorValues(fixture.indicators)
-    : ["compliance_weighted_avg"]
-
-  return indicatorValues.map((indicator) => ({
-    indicator,
-    rows: fixture.getHexData(indicator),
-  }))
 }
 
 export default function App() {
@@ -119,36 +66,56 @@ export default function App() {
   const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
   const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
-  const [selectedIndicator, setSelectedIndicator] = React.useState("compliance_weighted_avg")
   const [gridTransparency, setGridTransparency] = React.useState(65)
-  const [availableIndicators, setAvailableIndicators] = React.useState<NestedOption[]>(
-    ALWAYS_AVAILABLE_INDICATORS
-  )
-
-  const [hexData, setHexData] = React.useState<HexMapCell[]>([])
-  const [activeBounds, setActiveBounds] = React.useState<number[]>([])
-  const [mapDataError, setMapDataError] = React.useState<string | null>("Run analysis to load map data.")
-  const [selectedCellIds, setSelectedCellIds] = React.useState<Set<string>>(() => new Set())
-  const [selectedCellDetails, setSelectedCellDetails] = React.useState<CellDetailRow[]>([])
-  const [selectedCellDetailsCellId, setSelectedCellDetailsCellId] = React.useState<string | null>(null)
-  const [selectedCellDetailsLoading, setSelectedCellDetailsLoading] = React.useState(false)
-  const selectedCellsData = React.useMemo(
-    () => hexData.filter((cell) => selectedCellIds.has(cell.h3_cell)),
-    [hexData, selectedCellIds]
-  )
-  const activeFillConfig = React.useMemo(
-    () => getIndicatorFillConfig(selectedIndicator, activeBounds),
-    [activeBounds, selectedIndicator]
-  )
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
-  const duckDbClientRef = React.useRef<DuckDbClient | null>(null)
-  const duckDbInitPromiseRef = React.useRef<Promise<DuckDbClient> | null>(null)
-  const hexPerformanceFixtureInstallPromiseRef = React.useRef<Promise<void> | null>(null)
-  const hexPerformanceFixtureInitialLoadStartedRef = React.useRef(false)
-  const mapDataRequestIdRef = React.useRef(0)
-  const [loading, setLoading] = React.useState(false)
+  const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture)
+  const {
+    selectedCellDetails,
+    selectedCellDetailsCellId,
+    selectedCellDetailsLoading,
+    clearSelectedCellDetails,
+    loadSelectedCellDetails,
+  } = useSelectedCellDetails(ensureDuckDbClient)
+  const {
+    selectedIndicator,
+    availableIndicators,
+    setAvailableIndicators,
+    hexData,
+    activeBounds,
+    activeFillConfig,
+    mapDataError,
+    setMapDataError,
+    clearMapData,
+    loadMapData,
+    selectedCellIds,
+    setSelectedCellIds,
+    selectedCellsData,
+    resetSelectedCells,
+    handleMapCellClick,
+    handleIndicatorChange,
+    handleSelectBin,
+  } = useMapIndicatorState({
+    useHexPerformanceFixture,
+    ensureDuckDbClient,
+    drawRef,
+    setDrawnPolygons,
+    clearSelectedCellDetails,
+    loadSelectedCellDetails,
+  })
+  const { loading, handleAnalyze } = useRunAnalysis({
+    thresholds,
+    weights,
+    selectedIndicator,
+    ensureDuckDbClient,
+    loadMapData,
+    resetSelectedCells,
+    setAvailableIndicators,
+    clearMapData,
+    setMapDataError,
+    setConfigOpen,
+  })
 
   const polygonSelectedCellIds = React.useMemo(() => {
     if (drawnPolygons.length === 0 || hexData.length === 0) return new Set<string>()
@@ -179,36 +146,6 @@ export default function App() {
     }
   }, [drawnPolygons, hexData])
 
-  const ensureDuckDbClient = React.useCallback(async () => {
-    if (duckDbClientRef.current) return duckDbClientRef.current
-
-    if (!duckDbInitPromiseRef.current) {
-      duckDbInitPromiseRef.current = (async () => {
-        const { createDuckDb } = await import("./db/duckdb/createDuckDb")
-        const client = await createDuckDb()
-        if (!useHexPerformanceFixture) {
-          const { setupDb } = await import("./db/duckdb/setupDb")
-          await setupDb(client)
-        }
-
-        duckDbClientRef.current = client
-        return client
-      })()
-    }
-
-    try {
-      return await duckDbInitPromiseRef.current
-    } catch (error) {
-      duckDbInitPromiseRef.current = null
-      console.error("DuckDB initialization failed:", error)
-      throw error
-    }
-  }, [useHexPerformanceFixture])
-
-  React.useEffect(() => {
-    void ensureDuckDbClient()
-  }, [ensureDuckDbClient]) 
-
   React.useEffect(() => {
     if (drawnPolygons.length > 0) {
       setSelectedCellIds(polygonSelectedCellIds)
@@ -221,217 +158,6 @@ export default function App() {
     },
     []
   )
-
-  const clearSelectedCellDetails = React.useCallback(() => {
-    setSelectedCellDetails([])
-    setSelectedCellDetailsCellId(null)
-    setSelectedCellDetailsLoading(false)
-  }, [])
-
-  const loadSelectedCellDetails = React.useCallback(
-    async (h3Cell: string) => {
-      setSelectedCellDetails([])
-      setSelectedCellDetailsCellId(h3Cell)
-      setSelectedCellDetailsLoading(true)
-
-      try {
-        const client = await ensureDuckDbClient()
-        const { getCellDetails } = await import("./db/duckdb/runCalculations")
-        const details = await getCellDetails(client.conn, h3Cell)
-        setSelectedCellDetails(details)
-      } catch (error) {
-        console.error("DuckDB cell details query failed:", error)
-        setSelectedCellDetails([])
-      } finally {
-        setSelectedCellDetailsLoading(false)
-      }
-    },
-    [ensureDuckDbClient]
-  )
-
-  const handleMapCellClick = React.useCallback(
-    (obj: HexMapDeckObject | null) => {
-      if (!obj) {
-        setSelectedCellIds(new Set())
-        clearSelectedCellDetails()
-        return
-      }
-
-      if (selectedCellIds.has(obj.h3_cell) && selectedCellIds.size === 1) {
-        setSelectedCellIds(new Set())
-        clearSelectedCellDetails()
-        return
-      }
-
-      setSelectedCellIds(new Set([obj.h3_cell]))
-      void loadSelectedCellDetails(obj.h3_cell)
-    },
-    [clearSelectedCellDetails, loadSelectedCellDetails, selectedCellIds]
-  )
-
-  const loadMapData = React.useCallback(
-    async (indicator: string, requestId = mapDataRequestIdRef.current) => {
-      const client = await ensureDuckDbClient()
-      const { getMapData } = await import("./db/duckdb/runCalculations")
-      const { rows, bounds } = await getMapData(client.conn, indicator)
-      if (requestId !== mapDataRequestIdRef.current) return false
-      setHexData(rows)
-      setActiveBounds(bounds)
-      setMapDataError(null)
-      return true
-    },
-    [ensureDuckDbClient]
-  )
-
-  const ensureHexPerformanceFixtureInstalled = React.useCallback(async () => {
-    if (!useHexPerformanceFixture) return
-    if (hexPerformanceFixtureInstallPromiseRef.current) {
-      await hexPerformanceFixtureInstallPromiseRef.current
-      return
-    }
-
-    const fixture = getHexPerformanceFixture()
-    if (!fixture) throw new Error("Hex performance fixture is not installed.")
-
-    if (fixture.indicators) {
-      setAvailableIndicators(fixture.indicators)
-    }
-
-    hexPerformanceFixtureInstallPromiseRef.current = (async () => {
-      const client = await ensureDuckDbClient()
-      const { installMapDataFixture } = await import("./db/duckdb/mapDataFixture")
-      await installMapDataFixture(client.conn, getFixtureIndicatorRows(fixture))
-    })()
-
-    try {
-      await hexPerformanceFixtureInstallPromiseRef.current
-    } catch (error) {
-      hexPerformanceFixtureInstallPromiseRef.current = null
-      throw error
-    }
-  }, [ensureDuckDbClient, useHexPerformanceFixture])
-
-  React.useEffect(() => {
-    if (
-      !useHexPerformanceFixture ||
-      hexData.length > 0 ||
-      hexPerformanceFixtureInitialLoadStartedRef.current
-    ) return
-
-    hexPerformanceFixtureInitialLoadStartedRef.current = true
-    const requestId = mapDataRequestIdRef.current + 1
-    mapDataRequestIdRef.current = requestId
-
-    void (async () => {
-      try {
-        await ensureHexPerformanceFixtureInstalled()
-        await loadMapData(selectedIndicator, requestId)
-      } catch (error) {
-        hexPerformanceFixtureInitialLoadStartedRef.current = false
-        setHexData([])
-        setActiveBounds([])
-        setMapDataError(error instanceof Error ? error.message : "Map data could not be loaded.")
-      }
-    })()
-  }, [ensureHexPerformanceFixtureInstalled, hexData.length, loadMapData, selectedIndicator, useHexPerformanceFixture])
-
-  const handleIndicatorChange = React.useCallback(
-    async (value: string) => {
-      if (!useHexPerformanceFixture && hexData.length === 0) return
-
-      const requestId = mapDataRequestIdRef.current + 1
-      mapDataRequestIdRef.current = requestId
-
-      try {
-        if (useHexPerformanceFixture) {
-          await ensureHexPerformanceFixtureInstalled()
-        }
-        const didUpdate = await loadMapData(value, requestId)
-        if (didUpdate) {
-          setSelectedIndicator(value)
-          setSelectedCellIds(new Set())
-          clearSelectedCellDetails()
-        }
-      } catch (error) {
-        console.error("DuckDB indicator refresh failed:", error)
-        setHexData([])
-        setActiveBounds([])
-        setMapDataError(error instanceof Error ? error.message : "Map data could not be loaded.")
-      }
-    },
-    [clearSelectedCellDetails, ensureHexPerformanceFixtureInstalled, hexData.length, loadMapData, useHexPerformanceFixture]
-  )
-
-  const handleSelectBin = React.useCallback(
-    (binIndex: number | null) => {
-      if (binIndex === null) {
-        setSelectedCellIds(new Set())
-        clearSelectedCellDetails()
-        return
-      }
-
-      const bounds = activeBounds
-      const startedAt = performance.now()
-      const cellsInBin = hexData.filter((cell) => cell.bin === binIndex)
-      const cellsInBinIds = new Set(cellsInBin.map((cell) => cell.h3_cell))
-
-      logSelectionTiming("handleSelectBin.filter", startedAt, {
-        cells_total: hexData.length,
-        cells_selected: cellsInBinIds.size,
-        bin_min: bounds[binIndex],
-        bin_max: bounds[binIndex + 1],
-      })
-
-      if (areSetsEqual(selectedCellIds, cellsInBinIds)) {
-        setSelectedCellIds(new Set())
-        clearSelectedCellDetails()
-        return
-      }
-
-      const draw = drawRef.current
-      if (draw) {
-        const all = draw.getAll()
-        const ids = (all.features as Array<{ id?: unknown }>)
-          .map((feature) => feature.id)
-          .filter((id): id is string => typeof id === "string")
-        if (ids.length > 0) draw.delete(ids)
-      }
-
-      setDrawnPolygons([])
-      setSelectedCellIds(cellsInBinIds)
-      clearSelectedCellDetails()
-    },
-    [activeBounds, clearSelectedCellDetails, hexData, selectedCellIds]
-  )
-
-  const handleAnalyze = async () => {
-    setLoading(true)
-    setMapDataError(null)
-
-    try {
-      const client = await ensureDuckDbClient()
-      const [{ createInputTables }, { runCalculations }] = await Promise.all([
-        import("./db/duckdb/createInputTables"),
-        import("./db/duckdb/runCalculations"),
-      ])
-
-      await createInputTables(client.conn, thresholds, weights)
-      await runCalculations(client.conn)
-      await loadMapData(selectedIndicator)
-      setSelectedCellIds(new Set())
-      clearSelectedCellDetails()
-      setAvailableIndicators(buildIndicatorOptions(thresholds))
-      setConfigOpen(false)
-    } catch (error) {
-      console.error("DuckDB analysis failed:", error)
-      setAvailableIndicators([])
-      setHexData([])
-      setActiveBounds([])
-      setMapDataError(error instanceof Error ? error.message : "Analysis failed.")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const isFormValid =
     selectedScenario &&

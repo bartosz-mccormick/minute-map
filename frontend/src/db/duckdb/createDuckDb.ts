@@ -13,11 +13,7 @@ export type DuckDbClient = {
 
 let cachedClient: DuckDbClient | null = null;
 
-export async function createDuckDb(): Promise<DuckDbClient> {
-  if (cachedClient) {
-    return cachedClient;
-  }
-
+async function createDuckDbClient(): Promise<DuckDbClient> {
   const bundles: duckdb.DuckDBBundles = {
     mvp: {
       mainModule: duckdbWasmMvp,
@@ -44,9 +40,21 @@ export async function createDuckDb(): Promise<DuckDbClient> {
 
   const conn = await db.connect();
 
-  cachedClient = { db, conn };
+  return { db, conn };
+}
+
+export async function createDuckDb(): Promise<DuckDbClient> {
+  if (cachedClient) {
+    return cachedClient;
+  }
+
+  cachedClient = await createDuckDbClient();
 
   return cachedClient;
+}
+
+export async function createIsolatedDuckDb(): Promise<DuckDbClient> {
+  return createDuckDbClient();
 }
 
 // test duckdb connection

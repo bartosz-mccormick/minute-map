@@ -19,6 +19,17 @@ declare global {
 
 test("wheel zoom does not reload POI parquet or repeatedly rebuild POI data", async ({ page }) => {
   const parquetRequests: string[] = []
+  const poiConsoleFailures: string[] = []
+
+  page.on("console", (message) => {
+    const text = message.text()
+    if (
+      text.includes("POI parquet loading failed") ||
+      text.includes("POI parquet source failed")
+    ) {
+      poiConsoleFailures.push(text)
+    }
+  })
 
   page.on("request", (request) => {
     const url = request.url()
@@ -61,4 +72,5 @@ test("wheel zoom does not reload POI parquet or repeatedly rebuild POI data", as
   expect(counters?.renderablePois ?? 0).toBeLessThanOrEqual(4)
   expect(counters?.markerRows ?? 0).toBeLessThanOrEqual(4)
   expect(counters?.poiLayers ?? 0).toBeLessThanOrEqual(4)
+  expect(poiConsoleFailures).toEqual([])
 })

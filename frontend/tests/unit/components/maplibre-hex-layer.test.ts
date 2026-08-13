@@ -11,7 +11,7 @@ import {
   syncHexMapLayer,
   syncSelectedHexMapLayer,
   type MapLibreHexLayerMapLike,
-} from "./maplibre-hex-layer"
+} from "@/components/maplibre-hex-layer"
 import type { HexFeatureCollection } from "@/app-types"
 
 function createMapLike() {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildBins, calculateBinnedStats } from "./binning"
+import { buildBins, calculateBinnedStats } from "@/lib/binning"
 
 describe("binning", () => {
   it("builds adjacent bin ranges from bounds", () => {

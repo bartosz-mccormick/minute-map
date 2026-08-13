@@ -13,7 +13,7 @@ import {
   MAP_OVERLAY_META_TEXT_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
-import { POI_DESTINATIONS, getDataFileUrl } from "@/app-config"
+import { POI_DESTINATIONS } from "@/app-config"
 import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
 import { usePoiViewportSync, type PoiMapLike } from "@/components/poi/usePoiViewportSync"
 import type { Destination } from "@/app-types"
@@ -59,7 +59,7 @@ type PoiSource = {
 const POI_SOURCES: PoiSource[] = [
   {
     file: "entrances.with_names.geoparquet.parquet",
-    url: getDataFileUrl("entrances.with_names.geoparquet.parquet"),
+    url: "/data/entrances.with_names.geoparquet.parquet",
     query: `
       SELECT
         CAST(row_number() OVER () AS VARCHAR) AS poi_id,
@@ -133,6 +133,10 @@ function DeckGLOverlay(props: ConstructorParameters<typeof DeckOverlay>[0]) {
 
 function sqlList(values: string[]) {
   return values.map((value) => `'${value.replace(/'/g, "''")}'`).join(", ")
+}
+
+function getDuckDbFileUrl(url: string) {
+  return new URL(url, window.location.href).href
 }
 
 function parseWkbPoint(value: RawPoiRow["geom"]): { lon: number; lat: number } | null {
@@ -361,8 +365,8 @@ async function loadPois(): Promise<PoiRow[]> {
   poiRowsPromise = (async () => {
     incrementPoiPerfCounter("loadPois")
 
-    const { createDuckDb } = await import("@/db/duckdb/createDuckDb")
-    const { db, conn } = await createDuckDb()
+    const { createIsolatedDuckDb } = await import("@/db/duckdb/createDuckDb")
+    const { db, conn } = await createIsolatedDuckDb()
     const categoryValues = POI_CATEGORIES.map((category) => category.value)
     const poiRows: PoiRow[] = []
     let loadedAnySource = false
@@ -374,7 +378,7 @@ async function loadPois(): Promise<PoiRow[]> {
       try {
         await db.registerFileURL(
           source.file,
-          source.url,
+          getDuckDbFileUrl(source.url),
           duckdb.DuckDBDataProtocol.HTTP,
           false
         )
