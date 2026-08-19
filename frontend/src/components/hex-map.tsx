@@ -453,6 +453,7 @@ export function HexMap({
   indicator,
   fillBounds,
   fillColors,
+  showOverflowBin = false,
   gridOpacity = 0.3,
   selectedCellIds,
   drawnPolygons,
@@ -467,13 +468,25 @@ export function HexMap({
     performanceMode !== "base" &&
     hexData.length > 0
   const getColorFunction = React.useMemo(
-    () =>
-      colorBins({
+    () => {
+      const regularColorCount = Math.max(0, fillBounds.length - 1)
+      const regularFillColors = fillColors.slice(0, regularColorCount)
+      const baseColorFunction = colorBins({
         attr: (row: HexMapCell) => row.value ?? 0,
         domain: fillBounds.slice(1, -1),
-        colors: fillColors,
-      }),
-    [fillBounds, fillColors]
+        colors: regularFillColors,
+      })
+      const overflowBinIndex = showOverflowBin ? regularColorCount : null
+
+      return (row: HexMapCell, info: never) => {
+        if (overflowBinIndex !== null && row.bin === overflowBinIndex) {
+          return fillColors[overflowBinIndex]
+        }
+
+        return baseColorFunction(row, info)
+      }
+    },
+    [fillBounds, fillColors, showOverflowBin]
   )
   const hexFeatureCollection = React.useMemo(
     () => createHexFeatureCollection({ hexData, getColorFunction }),
@@ -654,12 +667,17 @@ export function HexMap({
 
             const isCompliance = indicator.includes("compliance")
             const compliance = object.compliance_weighted_avg ?? null
+            const overflowBinIndex = showOverflowBin
+              ? Math.max(0, fillBounds.length - 1)
+              : null
+            const isOverflowBin = overflowBinIndex !== null && object.bin === overflowBinIndex
+            const maxBound = fillBounds[fillBounds.length - 1]
             const indicatorValue =
               indicator === "compliance_weighted_avg"
                 ? ""
                 : isCompliance
                   ? `\nValue: ${Math.round(value * 100)}%`
-                  : `\nValue: ${value} minutes`
+                  : `\nValue: ${isOverflowBin ? `>${maxBound}` : value} minutes`
 
             return `Compliance: ${compliance === null ? "No data" : `${Math.round(compliance * 100)}%`}${indicatorValue}`
           }}

@@ -113,6 +113,7 @@ export interface HexMapProps {
   indicator: string
   fillBounds: number[]
   fillColors: Color[]
+  showOverflowBin?: boolean
   gridOpacity?: number
   selectedCellIds: Set<string>
   drawnPolygons: GeoJSON.Feature[]
@@ -125,5 +126,6 @@ export interface HexMapProps {
 export interface LegendBandsProps {
   bounds: number[]
   colors: Color[]
+  showOverflowBin?: boolean
   formatValue?: (v: number) => string
 }

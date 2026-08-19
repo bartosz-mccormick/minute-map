@@ -22,6 +22,8 @@ interface ComplianceStatsProps {
   data: HexItem[]
   /** Bounds for bins (e.g. [0, 0.2, 0.4, 0.6, 0.8, 1] or [0, 5, 10, 15, 20, 25, 30]). Bins are [bounds[i], bounds[i+1]). */
   bounds: number[]
+  /** Whether to append a final >max bin for null min_travel_time values. */
+  showOverflowBin?: boolean
   /** Get the indicator value from a hex item (e.g. compliance or travel time). Null = missing, excluded from stats. */
   getValue: (item: HexItem) => number | null
   onSelectBin: (binIndex: number | null) => void
@@ -75,6 +77,7 @@ function formatRadarAxisLabel(label: string) {
 export function ComplianceStats({
   data,
   bounds,
+  showOverflowBin = false,
   getValue,
   onSelectBin,
   selectedCells,
@@ -83,11 +86,24 @@ export function ComplianceStats({
 }: ComplianceStatsProps) {
   const [plotType, setPlotType] = React.useState<(typeof PLOT_TYPES)[number]["value"]>("bar-chart")
   const bins = React.useMemo<DisplayBin[]>(
-    () => buildBins(bounds).map((bin) => ({
-      ...bin,
-      range: `${formatValue(bin.min)}–${formatValue(bin.max)}`,
-    })),
-    [bounds, formatValue]
+    () => {
+      const regularBins = buildBins(bounds).map((bin) => ({
+        ...bin,
+        range: `${formatValue(bin.min)}-${formatValue(bin.max)}`,
+      }))
+      if (!showOverflowBin || bounds.length === 0) return regularBins
+
+      const maxBound = bounds[bounds.length - 1]
+      return [
+        ...regularBins,
+        {
+          min: maxBound,
+          max: Number.POSITIVE_INFINITY,
+          range: `>${formatValue(maxBound)}`,
+        },
+      ]
+    },
+    [bounds, formatValue, showOverflowBin]
   )
 
   const stats = React.useMemo(() => {

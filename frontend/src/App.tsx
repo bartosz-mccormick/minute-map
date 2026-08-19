@@ -43,6 +43,7 @@ import {
   PRESET_NESTED_OPTIONS,
   PRESETS,
   TRANSPORT_MODES,
+  isMinTravelTimeIndicator,
 } from "@/app-config"
 import type { MapboxDrawApi, Threshold, Weight } from "@/app-types"
 
@@ -226,6 +227,7 @@ export default function App() {
         indicator={selectedIndicator}
         fillBounds={activeFillConfig.bounds}
         fillColors={activeFillConfig.colors}
+        showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
         gridOpacity={(100 - gridTransparency) / 100}
         selectedCellIds={selectedCellIds}
         drawnPolygons={drawnPolygons}
@@ -437,6 +439,7 @@ export default function App() {
             <LegendBands
               bounds={activeFillConfig.bounds}
               colors={activeFillConfig.colors}
+              showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
             />
           )}
         </CardContent>
@@ -449,6 +452,7 @@ export default function App() {
             <ComplianceStats
               data={hexData}
               bounds={activeFillConfig.bounds}
+              showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
               getValue={getValue}
               onSelectBin={handleSelectBin}
               selectedCells={selectedCellsData}

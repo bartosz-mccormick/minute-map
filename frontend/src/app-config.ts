@@ -162,18 +162,25 @@ export function getIndicatorBinConfig(indicator: string | undefined): BinConfig 
   return { method: "quantile", nBins: DEFAULT_QUANTILE_BIN_COUNT }
 }
 
+export function isMinTravelTimeIndicator(indicator: string | undefined) {
+  return indicator?.includes("min_travel_time") ?? false
+}
+
 export function getIndicatorFillColors(indicator: string | undefined, nBins: number): Color[] {
-  if (indicator?.includes("min_travel_time")) {
-    return sampleColors(TRAVEL_TIME_FILL_COLORS, nBins)
+  if (isMinTravelTimeIndicator(indicator)) {
+    return sampleColors(TRAVEL_TIME_FILL_COLORS.slice(0, -1), nBins)
   }
 
   return sampleColors(COMPLIANCE_FILL_COLORS, nBins)
 }
 
 export function getIndicatorFillConfig(indicator: string | undefined, bounds: number[]): { bounds: number[]; colors: Color[] } {
+  const colors = getIndicatorFillColors(indicator, bounds.length - 1)
   return {
     bounds,
-    colors: getIndicatorFillColors(indicator, bounds.length - 1),
+    colors: isMinTravelTimeIndicator(indicator) && bounds.length > 1
+      ? [...colors, TRAVEL_TIME_FILL_COLORS[TRAVEL_TIME_FILL_COLORS.length - 1]]
+      : colors,
   }
 }
 

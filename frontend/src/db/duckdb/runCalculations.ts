@@ -1,4 +1,4 @@
-import { ALWAYS_AVAILABLE_INDICATORS, getIndicatorBinConfig } from "@/app-config"
+import { ALWAYS_AVAILABLE_INDICATORS, getIndicatorBinConfig, isMinTravelTimeIndicator } from "@/app-config"
 import type { BinConfig } from "@/app-types"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"
 
@@ -166,13 +166,15 @@ async function calculateMapDataBounds(conn: AsyncDuckDBConnection, config: BinCo
   }
 }
 
-function buildBinCaseSql(bounds: number[]) {
+function buildBinCaseSql(bounds: number[], options: { includeNullOverflowBin?: boolean } = {}) {
   if (bounds.length < 2) {
     throw new Error("Could not calculate bin bounds for the selected indicator.")
   }
 
+  const nullBin = options.includeNullOverflowBin ? String(bounds.length - 1) : "NULL"
+
   if (bounds.length === 2 && bounds[0] === bounds[1]) {
-    return `CASE WHEN value IS NULL THEN NULL WHEN value = ${sqlNumber(bounds[0])} THEN 0 ELSE -1 END AS bin`
+    return `CASE WHEN value IS NULL THEN ${nullBin} WHEN value = ${sqlNumber(bounds[0])} THEN 0 ELSE -1 END AS bin`
   }
 
   const clauses = bounds.slice(0, -1).map((min, index) => {
@@ -184,18 +186,26 @@ function buildBinCaseSql(bounds: number[]) {
     return `WHEN value >= ${sqlNumber(min)} AND ${upperCheck} THEN ${index}`
   })
 
-  return `CASE WHEN value IS NULL THEN NULL ${clauses.join(" ")} ELSE -1 END AS bin`
+  return `CASE WHEN value IS NULL THEN ${nullBin} ${clauses.join(" ")} ELSE -1 END AS bin`
 }
 
-async function addBinsToMapData(conn: AsyncDuckDBConnection, bounds: number[]) {
+async function addBinsToMapData(
+  conn: AsyncDuckDBConnection,
+  bounds: number[],
+  options: { includeNullOverflowBin?: boolean } = {}
+) {
+  const valueSql = options.includeNullOverflowBin
+    ? `COALESCE(value, ${sqlNumber(bounds[bounds.length - 1])}) AS value`
+    : "value"
+
   await conn.query(`
     CREATE OR REPLACE TEMP TABLE map_data AS
     SELECT
       h3_cell,
       pop,
       compliance_weighted_avg,
-      value,
-      ${buildBinCaseSql(bounds)}
+      ${valueSql},
+      ${buildBinCaseSql(bounds, options)}
     FROM map_data
     ORDER BY h3_cell
   `)
@@ -265,7 +275,9 @@ export async function getMapData(
   await conn.query(mapRowsSql);
 
   const bounds = await calculateMapDataBounds(conn, getIndicatorBinConfig(indicator))
-  await addBinsToMapData(conn, bounds)
+  await addBinsToMapData(conn, bounds, {
+    includeNullOverflowBin: isMinTravelTimeIndicator(indicator),
+  })
 
   const result = await conn.query(`SELECT * FROM map_data`)
 

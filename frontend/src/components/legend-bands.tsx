@@ -6,16 +6,26 @@ import { MAP_OVERLAY_BODY_MAIN_CLASS } from "@/lib/map-overlay-styles"
 export function LegendBands({
   bounds,
   colors,
+  showOverflowBin = false,
   formatValue = fmt,
 }: LegendBandsProps) {
   const bands = React.useMemo(() => {
-    const out: { from: number; to: number; color: Color }[] = []
+    const out: { from: number; to: number; color: Color; label?: string }[] = []
     const n = Math.min(colors.length, Math.max(0, bounds.length - 1))
     for (let i = 0; i < n; i++) {
       out.push({ from: bounds[i], to: bounds[i + 1], color: colors[i] })
     }
+    if (showOverflowBin && colors.length > n && bounds.length > 0) {
+      const maxBound = bounds[bounds.length - 1]
+      out.push({
+        from: maxBound,
+        to: Number.POSITIVE_INFINITY,
+        color: colors[n],
+        label: `>${formatValue(maxBound)}`,
+      })
+    }
     return out
-  }, [bounds, colors])
+  }, [bounds, colors, formatValue, showOverflowBin])
 
   return (
     <div className="space-y-2">
@@ -29,7 +39,7 @@ export function LegendBands({
                 aria-hidden
               />
               <span className={`tabular-nums ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
-                {formatValue(b.from)}–{formatValue(b.to)}
+                {b.label ?? `${formatValue(b.from)}-${formatValue(b.to)}`}
               </span>
             </div>
           </li>
