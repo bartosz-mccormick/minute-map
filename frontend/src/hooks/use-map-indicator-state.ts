@@ -23,6 +23,7 @@ type UseMapIndicatorStateParams = {
   ensureDuckDbClient: () => Promise<DuckDbClient>
   drawRef: React.MutableRefObject<MapboxDrawApi | null>
   setDrawnPolygons: React.Dispatch<React.SetStateAction<GeoJSON.Feature[]>>
+  selectedCellDetailsCellId: string | null
   clearSelectedCellDetails: () => void
   loadSelectedCellDetails: (h3Cell: string) => void
 }
@@ -32,6 +33,7 @@ export function useMapIndicatorState({
   ensureDuckDbClient,
   drawRef,
   setDrawnPolygons,
+  selectedCellDetailsCellId,
   clearSelectedCellDetails,
   loadSelectedCellDetails,
 }: UseMapIndicatorStateParams) {
@@ -110,7 +112,11 @@ export function useMapIndicatorState({
         const didUpdate = await loadMapData(value, requestId)
         if (didUpdate) {
           setSelectedIndicator(value)
-          resetSelectedCells()
+          if (selectedCellDetailsCellId) {
+            void loadSelectedCellDetails(selectedCellDetailsCellId)
+          } else {
+            clearSelectedCellDetails()
+          }
         }
       } catch (error) {
         console.error("DuckDB indicator refresh failed:", error)
@@ -123,7 +129,9 @@ export function useMapIndicatorState({
       hexData.length,
       loadMapData,
       nextMapDataRequestId,
-      resetSelectedCells,
+      clearSelectedCellDetails,
+      loadSelectedCellDetails,
+      selectedCellDetailsCellId,
       useHexPerformanceFixture,
     ]
   )

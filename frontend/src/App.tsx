@@ -101,6 +101,7 @@ export default function App() {
     ensureDuckDbClient,
     drawRef,
     setDrawnPolygons,
+    selectedCellDetailsCellId,
     clearSelectedCellDetails,
     loadSelectedCellDetails,
   })
