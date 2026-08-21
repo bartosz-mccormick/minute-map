@@ -45,12 +45,16 @@ export function useMapIndicatorState({
   const {
     hexData,
     setHexData,
+    amenityRadarData,
+    selectedAmenityRadarData,
     activeBounds,
     setActiveBounds,
     mapDataError,
     setMapDataError,
     clearMapData,
     loadMapData,
+    loadAmenityRadarData,
+    clearSelectedAmenityRadarData,
     nextMapDataRequestId,
   } = useMapData(ensureDuckDbClient)
 
@@ -62,6 +66,15 @@ export function useMapIndicatorState({
     () => getIndicatorFillConfig(selectedIndicator, activeBounds),
     [activeBounds, selectedIndicator]
   )
+
+  React.useEffect(() => {
+    if (selectedCellIds.size === 0 || hexData.length === 0) {
+      clearSelectedAmenityRadarData()
+      return
+    }
+
+    void loadAmenityRadarData([...selectedCellIds])
+  }, [clearSelectedAmenityRadarData, hexData.length, loadAmenityRadarData, selectedCellIds])
 
   const { ensureInstalled: ensureHexPerformanceFixtureInstalled } = useHexPerformanceFixtureSupport({
     enabled: useHexPerformanceFixture,
@@ -181,12 +194,15 @@ export function useMapIndicatorState({
     availableIndicators,
     setAvailableIndicators,
     hexData,
+    amenityRadarData,
+    selectedAmenityRadarData,
     activeBounds,
     activeFillConfig,
     mapDataError,
     setMapDataError,
     clearMapData,
     loadMapData,
+    loadAmenityRadarData,
     selectedCellIds,
     setSelectedCellIds,
     selectedCellsData,

@@ -9,6 +9,7 @@ type UseRunAnalysisParams = {
   selectedIndicator: string
   ensureDuckDbClient: () => Promise<DuckDbClient>
   loadMapData: (indicator: string) => Promise<boolean>
+  loadAmenityRadarData: () => Promise<void>
   resetSelectedCells: () => void
   setAvailableIndicators: React.Dispatch<React.SetStateAction<NestedOption[]>>
   clearMapData: (message: string) => void
@@ -22,6 +23,7 @@ export function useRunAnalysis({
   selectedIndicator,
   ensureDuckDbClient,
   loadMapData,
+  loadAmenityRadarData,
   resetSelectedCells,
   setAvailableIndicators,
   clearMapData,
@@ -44,6 +46,7 @@ export function useRunAnalysis({
       await createInputTables(client.conn, thresholds, weights)
       await runCalculations(client.conn)
       await loadMapData(selectedIndicator)
+      await loadAmenityRadarData()
       resetSelectedCells()
       setAvailableIndicators(buildIndicatorOptions(thresholds))
       setConfigOpen(false)
@@ -58,6 +61,7 @@ export function useRunAnalysis({
     clearMapData,
     ensureDuckDbClient,
     loadMapData,
+    loadAmenityRadarData,
     resetSelectedCells,
     selectedIndicator,
     setAvailableIndicators,

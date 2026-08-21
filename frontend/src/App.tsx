@@ -84,12 +84,15 @@ export default function App() {
     availableIndicators,
     setAvailableIndicators,
     hexData,
+    amenityRadarData,
+    selectedAmenityRadarData,
     activeBounds,
     activeFillConfig,
     mapDataError,
     setMapDataError,
     clearMapData,
     loadMapData,
+    loadAmenityRadarData,
     selectedCellIds,
     setSelectedCellIds,
     selectedCellsData,
@@ -112,6 +115,7 @@ export default function App() {
     selectedIndicator,
     ensureDuckDbClient,
     loadMapData,
+    loadAmenityRadarData,
     resetSelectedCells,
     setAvailableIndicators,
     clearMapData,
@@ -454,6 +458,9 @@ export default function App() {
               bounds={activeFillConfig.bounds}
               showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
               getValue={getValue}
+              amenityRadarData={amenityRadarData}
+              selectedAmenityRadarData={selectedAmenityRadarData}
+              selectedIndicator={selectedIndicator}
               onSelectBin={handleSelectBin}
               selectedCells={selectedCellsData}
               formatValue={fmt}

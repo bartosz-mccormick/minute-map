@@ -24,6 +24,11 @@ export type CellDetailRow = {
   n_total: number
 }
 
+export type AmenityRadarRow = {
+  amenity: string
+  max_compliance_weighted_avg: number | null
+}
+
 type RawMapRow = {
   h3_cell: string
   pop: number
@@ -41,6 +46,11 @@ type RawCellDetailRow = {
   n_total: number
 }
 
+type RawAmenityRadarRow = {
+  amenity: string
+  max_compliance_weighted_avg: number | null
+}
+
 function sqlString(value: string) {
   return `'${value.replace(/'/g, "''")}'`
 }
@@ -50,6 +60,10 @@ function sqlNumber(value: number) {
     throw new Error(`Invalid numeric SQL value: ${value}`)
   }
   return String(value)
+}
+
+function sqlStringList(values: readonly string[]) {
+  return values.map(sqlString).join(", ")
 }
 
 function uniqueSortedBounds(bounds: number[]) {
@@ -321,6 +335,55 @@ export async function getCellDetails(
       compliance: raw.compliance ?? null,
       min_travel_time: raw.min_travel_time ?? null,
       n_total: raw.n_total,
+    }
+  })
+}
+
+export async function getAmenityRadarData(
+  conn: AsyncDuckDBConnection,
+  h3Cells?: readonly string[]
+): Promise<AmenityRadarRow[]> {
+  const hasSelection = h3Cells !== undefined && h3Cells.length > 0
+  const sourceTableSql = hasSelection
+    ? `
+      SELECT *
+      FROM compliance_batch_amenity_summary
+      WHERE h3_cell IN (${sqlStringList(h3Cells)})
+    `
+    : `
+      SELECT *
+      FROM compliance_batch_amenity_summary
+    `
+
+  const result = await conn.query(`
+    WITH radar_source AS (
+      ${sourceTableSql}
+    ),
+    area_population AS (
+      SELECT SUM(pop) AS total_pop
+      FROM (
+        SELECT DISTINCT h3_cell, pop
+        FROM radar_source
+      )
+    )
+    SELECT
+      class_b AS amenity,
+      CASE
+        WHEN area_population.total_pop > 0
+          THEN SUM(max_compliance * pop) / area_population.total_pop
+        ELSE NULL
+      END AS max_compliance_weighted_avg
+    FROM radar_source
+    CROSS JOIN area_population
+    GROUP BY class_b, area_population.total_pop
+    ORDER BY class_b
+  `)
+
+  return result.toArray().map((row) => {
+    const raw = row.toJSON() as RawAmenityRadarRow
+    return {
+      amenity: raw.amenity,
+      max_compliance_weighted_avg: raw.max_compliance_weighted_avg ?? null,
     }
   })
 }

@@ -73,6 +73,11 @@ export interface HexMapCell {
   [key: string]: unknown
 }
 
+export interface AmenityRadarDataPoint {
+  amenity: string
+  value: number | null
+}
+
 export interface HexMapDeckObject {
   h3_cell: string
   value?: number | null

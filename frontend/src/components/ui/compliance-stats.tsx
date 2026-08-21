@@ -2,6 +2,7 @@ import * as React from "react"
 import ReactECharts from "echarts-for-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
+import { DESTINATIONS, getIndicatorBinConfig } from "@/app-config"
 import {
   MAP_OVERLAY_BODY_SMALL_CLASS,
   MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
@@ -9,6 +10,7 @@ import {
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import { buildBins, calculateBinnedStats, type BinRange } from "@/lib/binning"
+import type { AmenityRadarDataPoint } from "@/app-types"
 
 type HexItem = {
   pop?: number
@@ -26,6 +28,9 @@ interface ComplianceStatsProps {
   showOverflowBin?: boolean
   /** Get the indicator value from a hex item (e.g. compliance or travel time). Null = missing, excluded from stats. */
   getValue: (item: HexItem) => number | null
+  amenityRadarData?: AmenityRadarDataPoint[]
+  selectedAmenityRadarData?: AmenityRadarDataPoint[]
+  selectedIndicator?: string
   onSelectBin: (binIndex: number | null) => void
   /** When 1+ cells are selected (click or polygon), show their distribution in the plot */
   selectedCells?: HexItem[]
@@ -43,25 +48,6 @@ const PLOT_TYPES = [
   { value: "bar-chart", label: "bar chart" },
   { value: "radar-chart", label: "radar chart" },
 ] as const
-const RADAR_AXES = [
-  "Supermarket",
-  "Pharmacy",
-  "ATM/Bank",
-  "Post Office",
-  "General Practitioner",
-  "Restaurant",
-  "Cafe",
-  "Bar",
-  "Bakery",
-  "School",
-  "Kindergarten",
-  "Library",
-  "Sports Facility",
-  "Park",
-  "Playground",
-]
-const RADAR_FULL_VALUES = [78, 64, 72, 58, 81, 69, 55, 62, 67, 73, 61, 70, 76, 80, 57]
-const RADAR_SELECTION_VALUES = [52, 47, 55, 40, 63, 50, 42, 45, 48, 54, 46, 51, 58, 60, 44]
 const RADAR_TOP_AXIS_LABELS = new Set(["Supermarket", "Pharmacy", "Playground"])
 const RADAR_BOTTOM_AXIS_LABELS = new Set(["Cafe", "Bar", "Bakery"])
 
@@ -74,11 +60,20 @@ function formatRadarAxisLabel(label: string) {
   return formattedLabel
 }
 
+function getRadarAxisLabelColor(amenity: string, highlightedAmenity: string | null) {
+  return highlightedAmenity === null || highlightedAmenity === amenity
+    ? "#111827"
+    : "rgba(17, 24, 39, 0.42)"
+}
+
 export function ComplianceStats({
   data,
   bounds,
   showOverflowBin = false,
   getValue,
+  amenityRadarData = [],
+  selectedAmenityRadarData = [],
+  selectedIndicator,
   onSelectBin,
   selectedCells,
   formatValue = defaultFormatValue,
@@ -123,6 +118,25 @@ export function ComplianceStats({
 
   const hasSelection = !!stats.selection
   const showSummary = plotType === "bar-chart"
+  const radarValueByAmenity = React.useMemo(() => {
+    return new Map(amenityRadarData.map((row) => [row.amenity, row.value]))
+  }, [amenityRadarData])
+  const selectedRadarValueByAmenity = React.useMemo(() => {
+    return new Map(selectedAmenityRadarData.map((row) => [row.amenity, row.value]))
+  }, [selectedAmenityRadarData])
+  const radarBounds = React.useMemo(() => {
+    const config = getIndicatorBinConfig("compliance_weighted_avg")
+    if (config.method === "equal_interval" && config.min !== undefined && config.max !== undefined) {
+      return { min: config.min, max: config.max }
+    }
+
+    return { min: 0, max: 1 }
+  }, [])
+  const highlightedAmenity = React.useMemo(() => {
+    const [amenity] = selectedIndicator?.split("::") ?? []
+    return DESTINATIONS.some((destination) => destination.value === amenity) ? amenity : null
+  }, [selectedIndicator])
+  const hasRadarSelection = hasSelection && selectedAmenityRadarData.length > 0
 
   const barChartOption = React.useMemo(() => {
     return {
@@ -220,9 +234,11 @@ export function ComplianceStats({
             color: "rgba(17, 24, 39, 0.18)",
           },
         },
-        indicator: RADAR_AXES.map((name) => ({
-          name,
-          max: 100,
+        indicator: DESTINATIONS.map((destination) => ({
+          name: destination.label,
+          max: radarBounds.max,
+          min: radarBounds.min,
+          color: getRadarAxisLabelColor(destination.value, highlightedAmenity),
         })),
       },
       series: [
@@ -231,7 +247,7 @@ export function ComplianceStats({
           type: "radar",
           data: [
             {
-              value: RADAR_FULL_VALUES,
+              value: DESTINATIONS.map((destination) => radarValueByAmenity.get(destination.value) ?? 0),
               name: "Full area",
               areaStyle: {
                 color: "rgba(59, 130, 246, 0.18)",
@@ -243,19 +259,23 @@ export function ComplianceStats({
                 color: COLOR_DEFAULT,
               },
             },
-            {
-              value: RADAR_SELECTION_VALUES,
-              name: "Selection",
-              areaStyle: {
-                color: "rgba(220, 38, 38, 0.16)",
-              },
-              lineStyle: {
-                color: "#D20C0C",
-              },
-              itemStyle: {
-                color: "#D20C0C",
-              },
-            },
+            ...(hasRadarSelection
+              ? [
+                  {
+                    value: DESTINATIONS.map((destination) => selectedRadarValueByAmenity.get(destination.value) ?? 0),
+                    name: "Selection",
+                    areaStyle: {
+                      color: "rgba(220, 38, 38, 0.16)",
+                    },
+                    lineStyle: {
+                      color: "#D20C0C",
+                    },
+                    itemStyle: {
+                      color: "#D20C0C",
+                    },
+                  },
+                ]
+              : []),
           ],
         },
       ],
@@ -263,7 +283,14 @@ export function ComplianceStats({
         trigger: "item",
       },
     }
-  }, [])
+  }, [
+    hasRadarSelection,
+    highlightedAmenity,
+    radarBounds.max,
+    radarBounds.min,
+    radarValueByAmenity,
+    selectedRadarValueByAmenity,
+  ])
 
   const chartOption = plotType === "radar-chart" ? radarChartOption : barChartOption
 
@@ -330,10 +357,12 @@ export function ComplianceStats({
                 <span className="inline-block h-3 w-3 rounded-sm bg-[#3b82f6]" />
                 <span>Full area</span>
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-3 w-3 rounded-sm bg-[#D20C0C]" />
-                <span>Selection</span>
-              </span>
+              {hasRadarSelection && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block h-3 w-3 rounded-sm bg-[#D20C0C]" />
+                  <span>Selection</span>
+                </span>
+              )}
             </div>
           )}
         </div>
