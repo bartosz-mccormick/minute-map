@@ -1,15 +1,21 @@
 import * as React from "react"
 import { DESTINATIONS } from "@/app-config"
-import type { AmenityRadarDataPoint, HexMapCell } from "@/app-types"
+import type { AmenityRadarDataResult, HexMapCell } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
+
+const EMPTY_AMENITY_RADAR_DATA: AmenityRadarDataResult = {
+  totalPop: 0,
+  rows: [],
+}
 
 export function useMapData(ensureDuckDbClient: () => Promise<DuckDbClient>) {
   const [hexData, setHexData] = React.useState<HexMapCell[]>([])
-  const [amenityRadarData, setAmenityRadarData] = React.useState<AmenityRadarDataPoint[]>([])
-  const [selectedAmenityRadarData, setSelectedAmenityRadarData] = React.useState<AmenityRadarDataPoint[]>([])
+  const [amenityRadarData, setAmenityRadarData] = React.useState<AmenityRadarDataResult>(EMPTY_AMENITY_RADAR_DATA)
+  const [selectedAmenityRadarData, setSelectedAmenityRadarData] = React.useState<AmenityRadarDataResult>(EMPTY_AMENITY_RADAR_DATA)
   const [activeBounds, setActiveBounds] = React.useState<number[]>([])
   const [mapDataError, setMapDataError] = React.useState<string | null>("Run analysis to load map data.")
   const mapDataRequestIdRef = React.useRef(0)
+  const zeroPopulationSelectionAlertKeyRef = React.useRef<string | null>(null)
 
   const nextMapDataRequestId = React.useCallback(() => {
     const requestId = mapDataRequestIdRef.current + 1
@@ -19,8 +25,8 @@ export function useMapData(ensureDuckDbClient: () => Promise<DuckDbClient>) {
 
   const clearMapData = React.useCallback((message: string) => {
     setHexData([])
-    setAmenityRadarData([])
-    setSelectedAmenityRadarData([])
+    setAmenityRadarData(EMPTY_AMENITY_RADAR_DATA)
+    setSelectedAmenityRadarData(EMPTY_AMENITY_RADAR_DATA)
     setActiveBounds([])
     setMapDataError(message)
   }, [])
@@ -55,17 +61,28 @@ export function useMapData(ensureDuckDbClient: () => Promise<DuckDbClient>) {
         amenity: row.amenity,
         value: row.max_compliance_weighted_avg,
       }))
+      const nextRadarDataResult: AmenityRadarDataResult = {
+        totalPop: rows[0]?.total_pop ?? 0,
+        rows: nextRadarData,
+      }
       if (h3Cells && h3Cells.length > 0) {
-        setSelectedAmenityRadarData(nextRadarData)
+        const selectionKey = [...h3Cells].sort().join("|")
+        if (nextRadarDataResult.totalPop <= 0 && zeroPopulationSelectionAlertKeyRef.current !== selectionKey) {
+          zeroPopulationSelectionAlertKeyRef.current = selectionKey
+          window.alert("Total population is unavailable for this selection.")
+        }
+        setSelectedAmenityRadarData(nextRadarDataResult)
       } else {
-        setAmenityRadarData(nextRadarData)
+        zeroPopulationSelectionAlertKeyRef.current = null
+        setAmenityRadarData(nextRadarDataResult)
       }
     },
     [ensureDuckDbClient]
   )
 
   const clearSelectedAmenityRadarData = React.useCallback(() => {
-    setSelectedAmenityRadarData([])
+    zeroPopulationSelectionAlertKeyRef.current = null
+    setSelectedAmenityRadarData(EMPTY_AMENITY_RADAR_DATA)
   }, [])
 
   return {

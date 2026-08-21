@@ -27,6 +27,7 @@ export type CellDetailRow = {
 export type AmenityRadarRow = {
   amenity: string
   max_compliance_weighted_avg: number | null
+  total_pop: number
 }
 
 type RawMapRow = {
@@ -49,6 +50,7 @@ type RawCellDetailRow = {
 type RawAmenityRadarRow = {
   amenity: string
   max_compliance_weighted_avg: number | null
+  total_pop: number | null
 }
 
 function sqlString(value: string) {
@@ -372,7 +374,8 @@ export async function getAmenityRadarData(
         WHEN area_population.total_pop > 0
           THEN SUM(max_compliance * pop) / area_population.total_pop
         ELSE NULL
-      END AS max_compliance_weighted_avg
+      END AS max_compliance_weighted_avg,
+      COALESCE(area_population.total_pop, 0) AS total_pop
     FROM radar_source
     CROSS JOIN area_population
     GROUP BY class_b, area_population.total_pop
@@ -384,6 +387,32 @@ export async function getAmenityRadarData(
     return {
       amenity: raw.amenity,
       max_compliance_weighted_avg: raw.max_compliance_weighted_avg ?? null,
+      total_pop: raw.total_pop ?? 0,
     }
+  })
+}
+
+export async function getAmenityComplianceCellsInBin(
+  conn: AsyncDuckDBConnection,
+  amenity: string,
+  min: number,
+  max: number,
+  includeMax: boolean
+): Promise<string[]> {
+  const upperBoundSql = includeMax
+    ? `(max_compliance < ${sqlNumber(max)} OR max_compliance = ${sqlNumber(max)})`
+    : `max_compliance < ${sqlNumber(max)}`
+  const result = await conn.query(`
+    SELECT h3_cell
+    FROM compliance_batch_amenity_summary
+    WHERE class_b = ${sqlString(amenity)}
+      AND max_compliance >= ${sqlNumber(min)}
+      AND ${upperBoundSql}
+    ORDER BY h3_cell
+  `)
+
+  return result.toArray().map((row) => {
+    const raw = row.toJSON() as { h3_cell: string }
+    return raw.h3_cell
   })
 }

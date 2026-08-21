@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ALWAYS_AVAILABLE_INDICATORS, getIndicatorFillConfig } from "@/app-config"
+import { ALWAYS_AVAILABLE_INDICATORS, DESTINATIONS, getIndicatorFillConfig } from "@/app-config"
 import type { HexMapDeckObject, MapboxDrawApi, NestedOption } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
 import { useHexPerformanceFixtureSupport } from "@/performance-fixtures/hex-performance-fixture"
@@ -16,6 +16,12 @@ function areSetsEqual<T>(a: Set<T>, b: Set<T>) {
 function logSelectionTiming(label: string, startedAt: number, details?: Record<string, unknown>) {
   const elapsedMs = performance.now() - startedAt
   console.info(`[selection-timing] ${label}: ${elapsedMs.toFixed(2)}ms`, details ?? {})
+}
+
+function getAmenityFromComplianceIndicator(indicator: string) {
+  const [amenity, , metric] = indicator.split("::")
+  if (metric !== "compliance") return null
+  return DESTINATIONS.some((destination) => destination.value === amenity) ? amenity : null
 }
 
 type UseMapIndicatorStateParams = {
@@ -189,6 +195,76 @@ export function useMapIndicatorState({
     [activeBounds, clearSelectedCellDetails, drawRef, hexData, resetSelectedCells, selectedCellIds, setDrawnPolygons]
   )
 
+  const handleSelectRadarBin = React.useCallback(
+    async (binIndex: number | null, bounds: readonly number[]) => {
+      if (binIndex === null) {
+        resetSelectedCells()
+        return
+      }
+
+      const amenity = getAmenityFromComplianceIndicator(selectedIndicator)
+      if (!amenity) {
+        handleSelectBin(binIndex)
+        return
+      }
+
+      const min = bounds[binIndex]
+      const max = bounds[binIndex + 1]
+      if (min === undefined || max === undefined) return
+
+      const startedAt = performance.now()
+      try {
+        const client = await ensureDuckDbClient()
+        const { getAmenityComplianceCellsInBin } = await import("@/db/duckdb/runCalculations")
+        const h3Cells = await getAmenityComplianceCellsInBin(
+          client.conn,
+          amenity,
+          min,
+          max,
+          binIndex === bounds.length - 2
+        )
+        const nextSelectedCellIds = new Set(h3Cells)
+
+        logSelectionTiming("handleSelectRadarBin.query", startedAt, {
+          amenity,
+          cells_selected: nextSelectedCellIds.size,
+          bin_min: min,
+          bin_max: max,
+        })
+
+        if (areSetsEqual(selectedCellIds, nextSelectedCellIds)) {
+          resetSelectedCells()
+          return
+        }
+
+        const draw = drawRef.current
+        if (draw) {
+          const all = draw.getAll()
+          const ids = (all.features as Array<{ id?: unknown }>)
+            .map((feature) => feature.id)
+            .filter((id): id is string => typeof id === "string")
+          if (ids.length > 0) draw.delete(ids)
+        }
+
+        setDrawnPolygons([])
+        setSelectedCellIds(nextSelectedCellIds)
+        clearSelectedCellDetails()
+      } catch (error) {
+        console.error("DuckDB radar bin selection failed:", error)
+      }
+    },
+    [
+      clearSelectedCellDetails,
+      drawRef,
+      ensureDuckDbClient,
+      handleSelectBin,
+      resetSelectedCells,
+      selectedCellIds,
+      selectedIndicator,
+      setDrawnPolygons,
+    ]
+  )
+
   return {
     selectedIndicator,
     availableIndicators,
@@ -210,5 +286,6 @@ export function useMapIndicatorState({
     handleMapCellClick,
     handleIndicatorChange,
     handleSelectBin,
+    handleSelectRadarBin,
   }
 }

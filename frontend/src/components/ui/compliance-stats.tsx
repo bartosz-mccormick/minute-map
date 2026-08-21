@@ -10,7 +10,7 @@ import {
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import { buildBins, calculateBinnedStats, type BinRange } from "@/lib/binning"
-import type { AmenityRadarDataPoint } from "@/app-types"
+import type { AmenityRadarDataResult } from "@/app-types"
 
 type HexItem = {
   pop?: number
@@ -28,10 +28,11 @@ interface ComplianceStatsProps {
   showOverflowBin?: boolean
   /** Get the indicator value from a hex item (e.g. compliance or travel time). Null = missing, excluded from stats. */
   getValue: (item: HexItem) => number | null
-  amenityRadarData?: AmenityRadarDataPoint[]
-  selectedAmenityRadarData?: AmenityRadarDataPoint[]
+  amenityRadarData?: AmenityRadarDataResult
+  selectedAmenityRadarData?: AmenityRadarDataResult
   selectedIndicator?: string
   onSelectBin: (binIndex: number | null) => void
+  onSelectRadarBin?: (binIndex: number | null, bounds: readonly number[]) => void
   /** When 1+ cells are selected (click or polygon), show their distribution in the plot */
   selectedCells?: HexItem[]
   /** Format axis labels (default: one decimal, no trailing .0) */
@@ -43,7 +44,24 @@ type DisplayBin = BinRange & {
   range: string
 }
 
+type RadarCoordinateSystem = {
+  cx: number
+  cy: number
+  r: number
+}
+
+type EChartsWithModel = {
+  getModel: () => {
+    getComponent: (mainType: string) => { coordinateSystem?: RadarCoordinateSystem } | undefined
+  }
+  getDom: () => HTMLElement
+}
+
 const COLOR_DEFAULT = "#3b82f6"
+const EMPTY_AMENITY_RADAR_DATA: AmenityRadarDataResult = {
+  totalPop: 0,
+  rows: [],
+}
 const PLOT_TYPES = [
   { value: "bar-chart", label: "bar chart" },
   { value: "radar-chart", label: "radar chart" },
@@ -71,15 +89,18 @@ export function ComplianceStats({
   bounds,
   showOverflowBin = false,
   getValue,
-  amenityRadarData = [],
-  selectedAmenityRadarData = [],
+  amenityRadarData = EMPTY_AMENITY_RADAR_DATA,
+  selectedAmenityRadarData = EMPTY_AMENITY_RADAR_DATA,
   selectedIndicator,
   onSelectBin,
+  onSelectRadarBin,
   selectedCells,
   formatValue = defaultFormatValue,
   className = "fixed bottom-4 right-4 z-10 bg-white shadow-lg w-[380px]",
 }: ComplianceStatsProps) {
   const [plotType, setPlotType] = React.useState<(typeof PLOT_TYPES)[number]["value"]>("bar-chart")
+  const [selectedRadarBinIndex, setSelectedRadarBinIndex] = React.useState<number | null>(null)
+  const chartRef = React.useRef<ReactECharts>(null)
   const bins = React.useMemo<DisplayBin[]>(
     () => {
       const regularBins = buildBins(bounds).map((bin) => ({
@@ -119,10 +140,10 @@ export function ComplianceStats({
   const hasSelection = !!stats.selection
   const showSummary = plotType === "bar-chart"
   const radarValueByAmenity = React.useMemo(() => {
-    return new Map(amenityRadarData.map((row) => [row.amenity, row.value]))
+    return new Map(amenityRadarData.rows.map((row) => [row.amenity, row.value]))
   }, [amenityRadarData])
   const selectedRadarValueByAmenity = React.useMemo(() => {
-    return new Map(selectedAmenityRadarData.map((row) => [row.amenity, row.value]))
+    return new Map(selectedAmenityRadarData.rows.map((row) => [row.amenity, row.value]))
   }, [selectedAmenityRadarData])
   const radarBounds = React.useMemo(() => {
     const config = getIndicatorBinConfig("compliance_weighted_avg")
@@ -136,7 +157,19 @@ export function ComplianceStats({
     const [amenity] = selectedIndicator?.split("::") ?? []
     return DESTINATIONS.some((destination) => destination.value === amenity) ? amenity : null
   }, [selectedIndicator])
-  const hasRadarSelection = hasSelection && selectedAmenityRadarData.length > 0
+  const hasRadarSelection = hasSelection && selectedAmenityRadarData.rows.length > 0
+  const radarRingBounds = React.useMemo(() => {
+    const config = getIndicatorBinConfig("compliance_weighted_avg")
+    const nBins = config.method === "equal_interval" ? config.nBins : 5
+    const step = (radarBounds.max - radarBounds.min) / nBins
+    return Array.from({ length: nBins + 1 }, (_, index) => radarBounds.min + step * index)
+  }, [radarBounds.max, radarBounds.min])
+
+  React.useEffect(() => {
+    if (!hasRadarSelection) {
+      setSelectedRadarBinIndex(null)
+    }
+  }, [hasRadarSelection])
 
   const barChartOption = React.useMemo(() => {
     return {
@@ -207,7 +240,7 @@ export function ComplianceStats({
         center: ["50%", "51%"],
         radius: "78%",
         nameGap: 30,
-        splitNumber: 4,
+        splitNumber: radarRingBounds.length - 1,
         shape: "circle",
         axisName: {
           formatter: formatRadarAxisLabel,
@@ -221,7 +254,13 @@ export function ComplianceStats({
         },
         splitLine: {
           lineStyle: {
-            color: "rgba(17, 24, 39, 0.12)",
+            color: radarRingBounds.map((_, index) =>
+              selectedRadarBinIndex !== null &&
+              (index === selectedRadarBinIndex || index === selectedRadarBinIndex + 1)
+                ? "#111827"
+                : "rgba(17, 24, 39, 0.12)"
+            ),
+            width: 1,
           },
         },
         splitArea: {
@@ -288,7 +327,9 @@ export function ComplianceStats({
     highlightedAmenity,
     radarBounds.max,
     radarBounds.min,
+    radarRingBounds.length,
     radarValueByAmenity,
+    selectedRadarBinIndex,
     selectedRadarValueByAmenity,
   ])
 
@@ -306,6 +347,32 @@ export function ComplianceStats({
       },
     }),
     [onSelectBin]
+  )
+
+  const handleRadarChartClick = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (plotType !== "radar-chart" || !onSelectRadarBin) return
+
+      const chart = chartRef.current?.getEchartsInstance() as EChartsWithModel | undefined
+      const radar = chart?.getModel().getComponent("radar")?.coordinateSystem
+      if (!chart || !radar || radar.r <= 0) return
+
+      const chartRect = chart.getDom().getBoundingClientRect()
+      const x = event.clientX - chartRect.left
+      const y = event.clientY - chartRect.top
+      const distance = Math.hypot(x - radar.cx, y - radar.cy)
+      if (distance > radar.r) return
+
+      const normalizedDistance = distance / radar.r
+      const binCount = radarRingBounds.length - 1
+      const binIndex = Math.min(binCount - 1, Math.max(0, Math.floor(normalizedDistance * binCount)))
+
+      if (binIndex >= 0) {
+        setSelectedRadarBinIndex((current) => current === binIndex ? null : binIndex)
+        onSelectRadarBin(binIndex, radarRingBounds)
+      }
+    },
+    [onSelectRadarBin, plotType, radarRingBounds]
   )
 
   if (data.length === 0) return null
@@ -367,17 +434,20 @@ export function ComplianceStats({
           )}
         </div>
         <div className={`${plotType === "radar-chart" ? "h-[300px]" : "h-[260px]"} overflow-visible`}>
-          <ReactECharts
-            key={plotType}
-            option={chartOption}
-            style={
-              plotType === "radar-chart"
-                ? { height: "300px", width: "calc(100% + 64px)", margin: "-20px -32px", transform: "translateY(-14px)" }
-                : { height: "260px", width: "100%" }
-            }
-            opts={{ renderer: "canvas" }}
-            onEvents={plotType === "bar-chart" ? onChartEvents : undefined}
-          />
+          <div className="relative h-full w-full" onClick={handleRadarChartClick}>
+            <ReactECharts
+              ref={chartRef}
+              key={plotType}
+              option={chartOption}
+              style={
+                plotType === "radar-chart"
+                  ? { height: "300px", width: "calc(100% + 64px)", margin: "-20px -32px", transform: "translateY(-14px)" }
+                  : { height: "260px", width: "100%" }
+              }
+              opts={{ renderer: "canvas" }}
+              onEvents={plotType === "bar-chart" ? onChartEvents : undefined}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>

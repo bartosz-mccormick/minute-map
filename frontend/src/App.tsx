@@ -100,6 +100,7 @@ export default function App() {
     handleMapCellClick,
     handleIndicatorChange,
     handleSelectBin,
+    handleSelectRadarBin,
   } = useMapIndicatorState({
     useHexPerformanceFixture,
     ensureDuckDbClient,
@@ -462,6 +463,7 @@ export default function App() {
               selectedAmenityRadarData={selectedAmenityRadarData}
               selectedIndicator={selectedIndicator}
               onSelectBin={handleSelectBin}
+              onSelectRadarBin={handleSelectRadarBin}
               selectedCells={selectedCellsData}
               formatValue={fmt}
               className="bg-white shadow-lg w-full"

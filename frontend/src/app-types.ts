@@ -78,6 +78,11 @@ export interface AmenityRadarDataPoint {
   value: number | null
 }
 
+export interface AmenityRadarDataResult {
+  totalPop: number
+  rows: AmenityRadarDataPoint[]
+}
+
 export interface HexMapDeckObject {
   h3_cell: string
   value?: number | null
