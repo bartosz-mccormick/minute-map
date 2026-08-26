@@ -519,6 +519,7 @@ export default function App() {
             <ComplianceStats
               data={hexData}
               bounds={activeFillConfig.bounds}
+              colors={activeFillConfig.colors}
               showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
               getValue={getValue}
               amenityRadarData={amenityRadarData}

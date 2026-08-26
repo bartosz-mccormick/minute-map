@@ -2,7 +2,7 @@ import * as React from "react"
 import ReactECharts from "echarts-for-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { DESTINATIONS, getIndicatorBinConfig } from "@/app-config"
+import { DESTINATIONS, getIndicatorBinConfig, rgb } from "@/app-config"
 import {
   MAP_OVERLAY_BODY_SMALL_CLASS,
   MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
@@ -10,7 +10,7 @@ import {
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import { buildBins, calculateBinnedStats, type BinRange } from "@/lib/binning"
-import type { AmenityRadarDataResult } from "@/app-types"
+import type { AmenityRadarDataResult, Color } from "@/app-types"
 
 type HexItem = {
   pop?: number
@@ -24,6 +24,7 @@ interface ComplianceStatsProps {
   data: HexItem[]
   /** Bounds for bins (e.g. [0, 0.2, 0.4, 0.6, 0.8, 1] or [0, 5, 10, 15, 20, 25, 30]). Bins are [bounds[i], bounds[i+1]). */
   bounds: number[]
+  colors: Color[]
   /** Whether to append a final >max bin for null min_travel_time values. */
   showOverflowBin?: boolean
   /** Get the indicator value from a hex item (e.g. compliance or travel time). Null = missing, excluded from stats. */
@@ -71,6 +72,10 @@ const RADAR_BOTTOM_AXIS_LABELS = new Set(["Cafe", "Bar", "Bakery"])
 
 const defaultFormatValue = (v: number) => v.toFixed(1).replace(/\.0$/, "")
 
+function rgba([r, g, b]: Color, alpha: number) {
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 function formatRadarAxisLabel(label: string) {
   const formattedLabel = label.includes(" ") ? label.replace(" ", "\n") : label
   if (RADAR_TOP_AXIS_LABELS.has(label)) return `\n${formattedLabel}`
@@ -87,6 +92,7 @@ function getRadarAxisLabelColor(amenity: string, highlightedAmenity: string | nu
 export function ComplianceStats({
   data,
   bounds,
+  colors,
   showOverflowBin = false,
   getValue,
   amenityRadarData = EMPTY_AMENITY_RADAR_DATA,
@@ -198,16 +204,26 @@ export function ComplianceStats({
           type: "bar",
           barWidth: "60%",
           z: 1,
-          data: stats.binPop.map((pop) => ({
+          emphasis: { disabled: true },
+          data: stats.binPop.map((pop, index) => ({
             value: pop,
-            itemStyle: { color: COLOR_DEFAULT },
+            itemStyle: {
+              color: colors[index]
+                ? hasSelection ? rgba(colors[index], 0.32) : rgb(colors[index])
+                : hasSelection ? "rgba(59, 130, 246, 0.32)" : COLOR_DEFAULT,
+            },
           })),
         },
         {
           name: "Selection",
-          data: stats.selectionBinPop,
+          data: stats.selectionBinPop.map((pop, index) => ({
+            value: pop,
+            itemStyle: {
+              color: colors[index] ? rgb(colors[index]) : COLOR_DEFAULT,
+            },
+          })),
           type: "bar",
-          itemStyle: { color: "#D20C0C" },
+          emphasis: { disabled: true },
           barWidth: "60%",
           barGap: "-100%",
           z: 2,
@@ -215,7 +231,10 @@ export function ComplianceStats({
       ],
       tooltip: {
         trigger: "axis",
-        axisPointer: { type: "shadow" },
+        axisPointer: {
+          type: "shadow",
+          shadowStyle: { color: "rgba(17, 24, 39, 0.04)" },
+        },
         formatter: (params: Array<{ seriesName: string; value: number; name: string }>) => {
           const main = params.find(p => p.seriesName === "Population")
           const sel = params.find(p => p.seriesName === "Selection")
@@ -230,7 +249,7 @@ export function ComplianceStats({
         },
       },
     }
-  }, [stats, hasSelection, bins])
+  }, [colors, stats, hasSelection, bins])
 
   const radarChartOption = React.useMemo(() => {
     return {
