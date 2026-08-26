@@ -145,6 +145,18 @@
   min-height: 0;
 }
 
+@media (min-width: 701px) {
+  .config-dialog {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .config-dialog-scroll-area {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .draw-toolbar {
   position: fixed;
   top: 107px;
@@ -435,6 +447,7 @@
     max-height: calc(100dvh - 1.5rem);
     translate: -50% 0;
     gap: 1rem;
+    overflow: hidden;
     overflow-x: hidden;
     padding: 1.25rem 1rem;
   }

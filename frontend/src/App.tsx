@@ -313,7 +313,7 @@ export default function App() {
           </Button>
         </DialogTrigger>
         <DialogContent
-          className="config-dialog sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-hidden"
+          className="config-dialog sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto"
         >
           <div
             ref={configDialogRef}
