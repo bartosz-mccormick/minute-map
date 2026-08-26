@@ -96,7 +96,7 @@ export function EditableThresholdsTable({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="config-thresholds-table space-y-4">
       <Table>
         <TableHeader>
           <TableRow>

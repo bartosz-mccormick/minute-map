@@ -427,8 +427,7 @@ function DrawToolbar({
 
   return (
     <div
-      className="maplibregl-ctrl maplibregl-ctrl-group"
-      style={{ position: "fixed", top: 107, left: 10, zIndex: 10 }}
+      className="draw-toolbar maplibregl-ctrl maplibregl-ctrl-group"
     >
       <button
         title={isDrawing ? "Cancel" : "Make selection"}

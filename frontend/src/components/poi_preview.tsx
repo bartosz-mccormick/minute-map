@@ -5,6 +5,8 @@ import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import {
   ChevronDown,
   ChevronUp,
+  Layers,
+  X,
 } from "lucide-react"
 import { useControl, useMap } from "react-map-gl/maplibre"
 import {
@@ -419,6 +421,7 @@ export function PoiPreview() {
   const [error, setError] = React.useState<string | null>(null)
   const [viewRevision, setViewRevision] = React.useState(0)
   const [legendOpen, setLegendOpen] = React.useState(false)
+  const [mobileLegendOpen, setMobileLegendOpen] = React.useState(false)
   const [enabledCategories, setEnabledCategories] = React.useState<Set<PoiCategory>>(() => new Set())
   const [hoveredPoiTooltip, setHoveredPoiTooltip] = React.useState<{
     x: number
@@ -680,8 +683,26 @@ export function PoiPreview() {
           ))}
         </div>
       ) : null}
+      <button
+        type="button"
+        onClick={() => setMobileLegendOpen((open) => !open)}
+        className="mobile-poi-layer-button maplibregl-ctrl maplibregl-ctrl-group"
+        aria-label="Open Destination Entrances layers"
+      >
+        <Layers size={20} />
+      </button>
+      {mobileLegendOpen ? (
+        <button
+          type="button"
+          className="mobile-poi-backdrop"
+          aria-label="Close Destination Entrances layers"
+          onClick={() => setMobileLegendOpen(false)}
+        />
+      ) : null}
       <div
-        className="fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
+        className={`poi-legend-panel fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur ${
+          mobileLegendOpen ? "is-mobile-open" : ""
+        }`}
         style={{
           left: "var(--left-panel-left)",
           top: "var(--poi-legend-top)",
@@ -706,6 +727,14 @@ export function PoiPreview() {
               }
             >
               {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileLegendOpen(false)}
+              className="mobile-poi-close-button h-6 w-6 items-center justify-center rounded text-black hover:bg-gray-100"
+              aria-label="Close Destination Entrances layers"
+            >
+              <X size={16} strokeWidth={2.5} />
             </button>
           </div>
         </div>

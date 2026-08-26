@@ -50,7 +50,7 @@ export function EditableWeightsTable({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="config-weights-table space-y-4">
       <Table>
         <TableHeader>
           <TableRow>

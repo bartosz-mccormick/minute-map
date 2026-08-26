@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { Info, Settings, Loader2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Github, Info, Settings, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Slider } from "@/components/ui/slider"
 import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
@@ -67,7 +68,9 @@ export default function App() {
   const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
   const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
+  const [configScrollControl, setConfigScrollControl] = React.useState<"down" | "up" | null>(null)
   const [gridTransparency, setGridTransparency] = React.useState(65)
+  const configDialogRef = React.useRef<HTMLDivElement | null>(null)
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
@@ -194,6 +197,40 @@ export default function App() {
     setCustomWeights(INITIAL_WEIGHTS)
   }
 
+  const updateConfigScrollControl = React.useCallback(() => {
+    const dialog = configDialogRef.current
+    if (!dialog) {
+      setConfigScrollControl(null)
+      return
+    }
+
+    const canScroll = dialog.scrollHeight > dialog.clientHeight + 1
+    if (!canScroll) {
+      setConfigScrollControl(null)
+      return
+    }
+
+    const isAtBottom = dialog.scrollTop + dialog.clientHeight >= dialog.scrollHeight - 8
+    setConfigScrollControl(isAtBottom ? "up" : "down")
+  }, [])
+
+  React.useEffect(() => {
+    if (!configOpen) return
+
+    const frame = window.requestAnimationFrame(updateConfigScrollControl)
+    return () => window.cancelAnimationFrame(frame)
+  }, [configOpen, updateConfigScrollControl])
+
+  const handleConfigScrollControlClick = () => {
+    const dialog = configDialogRef.current
+    if (!dialog || !configScrollControl) return
+
+    dialog.scrollTo({
+      top: configScrollControl === "down" ? dialog.scrollHeight : 0,
+      behavior: "smooth",
+    })
+  }
+
   const applyPreset = (presetId: string) => {
     if (presetId === "custom") return
 
@@ -226,7 +263,22 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-full relative bg-gray-50" style={leftPanelLayoutStyle}>
+    <div className="app-shell h-screen w-full relative bg-gray-50" style={leftPanelLayoutStyle}>
+      <header className="mobile-app-header">
+        <img
+          className="mobile-app-logo"
+          src="/data/logo/minutemap_logo_text.svg"
+          alt="MinuteMap"
+        />
+        <nav className="mobile-app-nav" aria-label="Mobile navigation">
+          <button type="button" className="mobile-app-nav-link">
+            About
+          </button>
+          <button type="button" className="mobile-app-icon-button" aria-label="GitHub">
+            <Github size={18} />
+          </button>
+        </nav>
+      </header>
       <HexMap
         hexData={hexData}
         indicator={selectedIndicator}
@@ -251,15 +303,23 @@ export default function App() {
         {isBaseMapOnly ? null : <PoiPreview />}
       </HexMap>
 
+      <div className="mobile-bottom-panel">
       {isBaseMapOnly ? null : (
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
         <DialogTrigger asChild>
-          <Button size="lg" className="fixed top-4 right-4 z-10 shadow-lg">
+          <Button size="lg" className="configure-button fixed top-4 right-4 z-10 shadow-lg">
             <Settings className="h-5 w-5 mr-2" />
             <span className={MAP_OVERLAY_BUTTON_TEXT_CLASS}>Configure</span>
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="config-dialog sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-hidden"
+        >
+          <div
+            ref={configDialogRef}
+            className="config-dialog-scroll-area overflow-y-auto"
+            onScroll={updateConfigScrollControl}
+          >
           <DialogHeader>
             <DialogTitle className={MAP_OVERLAY_DIALOG_TITLE_CLASS}>X-Minute City Analysis Configuration</DialogTitle>
           </DialogHeader>
@@ -356,7 +416,7 @@ export default function App() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-center gap-4 pt-4">
+            <div className="config-dialog-actions flex justify-center gap-4 pt-4">
               <Button
                 onClick={handleAnalyze}
                 disabled={!isFormValid || loading}
@@ -382,13 +442,32 @@ export default function App() {
               </Button>
             </div>
           </div>
+          </div>
+          {configScrollControl ? (
+            <button
+              type="button"
+              className="config-scroll-control"
+              onClick={handleConfigScrollControlClick}
+              aria-label={
+                configScrollControl === "down"
+                  ? "Scroll configuration down"
+                  : "Scroll configuration up"
+              }
+            >
+              {configScrollControl === "down" ? (
+                <ArrowDown size={20} aria-hidden />
+              ) : (
+                <ArrowUp size={20} aria-hidden />
+              )}
+            </button>
+          ) : null}
         </DialogContent>
       </Dialog>
       )}
 
       {isBaseMapOnly ? null : (
       <div
-        className="fixed z-10 w-72 rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
+        className="grid-transparency-panel fixed z-10 w-72 rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
         style={{ left: "var(--left-panel-left)", top: "var(--left-panel-top)" }}
       >
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -397,36 +476,19 @@ export default function App() {
             {gridTransparency}%
           </div>
         </div>
-        <div
-          className="grid h-9 items-end justify-items-center gap-0.5"
-          style={{ gridTemplateColumns: "repeat(20, minmax(0, 1fr))" }}
-          role="slider"
+        <Slider
+          value={[gridTransparency]}
+          min={0}
+          max={100}
+          step={1}
+          onValueChange={([value]) => setGridTransparency(value)}
           aria-label="Adjust grid transparency"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={gridTransparency}
-        >
-          {Array.from({ length: 20 }, (_, index) => {
-            const value = (index + 1) * 5
-            const active = value <= gridTransparency
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setGridTransparency(value)}
-                className={`h-8 w-2 transition-colors ${
-                  active ? "bg-gray-800 hover:bg-gray-700" : "bg-gray-300 hover:bg-gray-400"
-                }`}
-                aria-label={`Set grid transparency to ${value}%`}
-              />
-            )
-          })}
-        </div>
+        />
       </div>
       )}
 
       {isBaseMapOnly ? null : (
-      <Card className="fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2" style={{ left: "var(--left-panel-left)" }}>
+      <Card className="indicator-panel fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2" style={{ left: "var(--left-panel-left)" }}>
         <CardContent className="p-3 space-y-3">
           <NestedDropdownSelect
             options={availableIndicators}
@@ -439,7 +501,7 @@ export default function App() {
             textClassName={MAP_OVERLAY_PANEL_TITLE_CLASS}
           />
           {mapDataError ? (
-            <div className={MAP_OVERLAY_META_TEXT_CLASS}>{mapDataError}</div>
+            <div className={`map-data-error ${MAP_OVERLAY_META_TEXT_CLASS}`}>{mapDataError}</div>
           ) : (
             <LegendBands
               bounds={activeFillConfig.bounds}
@@ -452,7 +514,7 @@ export default function App() {
       )}
 
       {((hexData.length > 0 && activeBounds.length > 1) || selectedCellDetailsCellId) && (
-        <div className="fixed bottom-10 right-4 z-10 w-[380px] space-y-2">
+        <div className="stats-panel fixed bottom-10 right-4 z-10 w-[380px] space-y-2">
           {hexData.length > 0 && activeBounds.length > 1 && (
             <ComplianceStats
               data={hexData}
@@ -515,6 +577,7 @@ export default function App() {
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }

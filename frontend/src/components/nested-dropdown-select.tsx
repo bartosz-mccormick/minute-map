@@ -60,6 +60,17 @@ export function NestedDropdownSelect({
   widthClassName = "w-[280px]",
 }: NestedDropdownSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 700px)")
+    const updateIsMobile = () => setIsMobile(mobileQuery.matches)
+
+    updateIsMobile()
+    mobileQuery.addEventListener("change", updateIsMobile)
+
+    return () => mobileQuery.removeEventListener("change", updateIsMobile)
+  }, [])
 
   const selectedPath = React.useMemo(() => {
     if (!value) return null
@@ -114,7 +125,10 @@ export function NestedDropdownSelect({
           >
             {opt.label}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
+          <DropdownMenuSubContent
+            collisionPadding={12}
+            className="nested-dropdown-sub-content"
+          >
             {opt.children!.map((child) => renderOption(child))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -130,6 +144,47 @@ export function NestedDropdownSelect({
       >
         {opt.label}
       </DropdownMenuItem>
+    )
+  }
+
+  const renderMobileOption = (opt: NestedOption, depth = 0) => {
+    const hasChildren = !!opt.children?.length
+    const canSelect = !hasChildren || opt.selectableWhenHasChildren
+    const isSelected = opt.value === value
+    const itemClassName = [
+      "nested-dropdown-tree-item",
+      textClassName,
+      isSelected ? "is-selected" : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+
+    return (
+      <div
+        key={opt.value}
+        className="nested-dropdown-tree-node"
+        style={{ "--tree-depth": depth } as React.CSSProperties}
+      >
+        {canSelect ? (
+          <button
+            type="button"
+            className={itemClassName}
+            disabled={opt.disabled}
+            onClick={() => handleSelect(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ) : (
+          <div className={itemClassName} aria-disabled={opt.disabled}>
+            {opt.label}
+          </div>
+        )}
+        {hasChildren ? (
+          <div className="nested-dropdown-tree-children">
+            {opt.children!.map((child) => renderMobileOption(child, depth + 1))}
+          </div>
+        ) : null}
+      </div>
     )
   }
 
@@ -152,14 +207,16 @@ export function NestedDropdownSelect({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
+        collisionPadding={12}
         className={[
+          "nested-dropdown-content",
           widthClassName,
           contentClassName,
         ]
           .filter(Boolean)
           .join(" ")}
       >
-        {options.map((opt) => renderOption(opt))}
+        {isMobile ? options.map((opt) => renderMobileOption(opt)) : options.map((opt) => renderOption(opt))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -2,7 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="color-scheme" content="light dark" />
+    <link id="favicon" rel="icon" type="image/svg+xml" href="/data/logo/minutemap_logo.svg" />
+    <script>
+      const favicon = document.getElementById("favicon")
+      const darkScheme = window.matchMedia("(prefers-color-scheme: dark)")
+      const setFavicon = () => {
+        favicon.href = darkScheme.matches
+          ? "/data/logo/minutemap_logo_dark.svg"
+          : "/data/logo/minutemap_logo.svg"
+      }
+
+      setFavicon()
+      darkScheme.addEventListener("change", setFavicon)
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Minute Mapper</title>
   </head>

@@ -378,7 +378,7 @@ export function ComplianceStats({
   if (data.length === 0) return null
 
   return (
-    <Card className={`${className} py-2`}>
+    <Card className={`compliance-stats-card ${className} py-2`}>
       <CardContent className="px-4 pt-2 pb-3 space-y-2">
         <div className="flex items-start">
           <Select value={plotType} onValueChange={(value) => setPlotType(value as typeof plotType)}>
@@ -441,7 +441,7 @@ export function ComplianceStats({
               option={chartOption}
               style={
                 plotType === "radar-chart"
-                  ? { height: "300px", width: "calc(100% + 64px)", margin: "-20px -32px", transform: "translateY(-14px)" }
+                  ? { height: "300px", width: "100%" }
                   : { height: "260px", width: "100%" }
               }
               opts={{ renderer: "canvas" }}
