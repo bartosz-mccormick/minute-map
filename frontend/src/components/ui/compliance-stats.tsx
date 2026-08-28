@@ -2,7 +2,7 @@ import * as React from "react"
 import ReactECharts from "echarts-for-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { DESTINATIONS, getIndicatorBinConfig, rgb } from "@/app-config"
+import { DESTINATIONS, getIndicatorBinConfig, isComplianceIndicator, rgb } from "@/app-config"
 import {
   MAP_OVERLAY_BODY_SMALL_CLASS,
   MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
@@ -110,6 +110,11 @@ export function ComplianceStats({
   const [selectedRadarBinIndex, setSelectedRadarBinIndex] = React.useState<number | null>(null)
   const [isMobile, setIsMobile] = React.useState(false)
   const chartRef = React.useRef<ReactECharts>(null)
+  const canShowRadarChart = isComplianceIndicator(selectedIndicator)
+  const availablePlotTypes = canShowRadarChart
+    ? PLOT_TYPES
+    : PLOT_TYPES.filter((option) => option.value !== "radar-chart")
+  const effectivePlotType = canShowRadarChart ? plotType : "bar-chart"
 
   React.useEffect(() => {
     const mobileQuery = window.matchMedia("(max-width: 700px)")
@@ -158,7 +163,7 @@ export function ComplianceStats({
   }, [data, selectedCells, bins, getValue])
 
   const hasSelection = !!stats.selection
-  const showSummary = plotType === "bar-chart"
+  const showSummary = effectivePlotType === "bar-chart"
   const radarValueByAmenity = React.useMemo(() => {
     return new Map(amenityRadarData.rows.map((row) => [row.amenity, row.value]))
   }, [amenityRadarData])
@@ -190,6 +195,12 @@ export function ComplianceStats({
       setSelectedRadarBinIndex(null)
     }
   }, [hasRadarSelection])
+
+  React.useEffect(() => {
+    if (!canShowRadarChart && plotType === "radar-chart") {
+      setPlotType("bar-chart")
+    }
+  }, [canShowRadarChart, plotType])
 
   const barChartOption = React.useMemo(() => {
     return {
@@ -366,7 +377,7 @@ export function ComplianceStats({
     selectedRadarValueByAmenity,
   ])
 
-  const chartOption = plotType === "radar-chart" ? radarChartOption : barChartOption
+  const chartOption = effectivePlotType === "radar-chart" ? radarChartOption : barChartOption
 
   const onChartEvents = React.useMemo(
     () => ({
@@ -384,7 +395,7 @@ export function ComplianceStats({
 
   const handleRadarChartClick = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (plotType !== "radar-chart" || !onSelectRadarBin) return
+      if (effectivePlotType !== "radar-chart" || !onSelectRadarBin) return
 
       const chart = chartRef.current?.getEchartsInstance() as EChartsWithModel | undefined
       const radar = chart?.getModel().getComponent("radar")?.coordinateSystem
@@ -405,12 +416,12 @@ export function ComplianceStats({
         onSelectRadarBin(binIndex, radarRingBounds)
       }
     },
-    [onSelectRadarBin, plotType, radarRingBounds]
+    [effectivePlotType, onSelectRadarBin, radarRingBounds]
   )
 
   if (data.length === 0) return null
 
-  const chartHeight = plotType === "radar-chart"
+  const chartHeight = effectivePlotType === "radar-chart"
     ? isMobile ? 220 : 300
     : isMobile ? 190 : 260
 
@@ -418,7 +429,7 @@ export function ComplianceStats({
     <Card className={`compliance-stats-card ${className} py-2`}>
       <CardContent className="px-4 pt-2 pb-3 space-y-2">
         <div className="compliance-stats-header flex items-start gap-2">
-          <Select value={plotType} onValueChange={(value) => setPlotType(value as typeof plotType)}>
+          <Select value={effectivePlotType} onValueChange={(value) => setPlotType(value as typeof plotType)}>
             <SelectTrigger
               size="sm"
               className="h-9 w-[168px] rounded-sm border-2 border-slate-900 bg-white px-3 shadow-none"
@@ -426,7 +437,7 @@ export function ComplianceStats({
               <SelectValue placeholder="selection for plot type" />
             </SelectTrigger>
             <SelectContent>
-              {PLOT_TYPES.map((option) => (
+              {availablePlotTypes.map((option) => (
                 <SelectItem key={option.value} value={option.value} className={MAP_OVERLAY_BODY_SMALL_CLASS}>
                   {option.label}
                 </SelectItem>
@@ -477,11 +488,11 @@ export function ComplianceStats({
           <div className="relative h-full w-full" onClick={handleRadarChartClick}>
             <ReactECharts
               ref={chartRef}
-              key={plotType}
+              key={effectivePlotType}
               option={chartOption}
               style={{ height: chartHeight, width: "100%" }}
               opts={{ renderer: "canvas" }}
-              onEvents={plotType === "bar-chart" ? onChartEvents : undefined}
+              onEvents={effectivePlotType === "bar-chart" ? onChartEvents : undefined}
             />
           </div>
         </div>

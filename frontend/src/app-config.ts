@@ -223,11 +223,15 @@ export const PRESET_NESTED_OPTIONS: NestedOption[] = [
 ]
 
 export function getIndicatorBinConfig(indicator: string | undefined): BinConfig {
-  if (indicator === "compliance_weighted_avg" || indicator?.endsWith("::compliance")) {
+  if (isComplianceIndicator(indicator)) {
     return { method: "equal_interval", nBins: DEFAULT_QUANTILE_BIN_COUNT, min: 0, max: 1 }
   }
 
   return { method: "quantile", nBins: DEFAULT_QUANTILE_BIN_COUNT }
+}
+
+export function isComplianceIndicator(indicator: string | undefined) {
+  return indicator === "compliance_weighted_avg" || indicator?.endsWith("::compliance") || false
 }
 
 export function isMinTravelTimeIndicator(indicator: string | undefined) {
