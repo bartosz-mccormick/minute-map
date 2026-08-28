@@ -18,6 +18,7 @@ import {
 import { POI_DESTINATIONS } from "@/app-config"
 import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
 import { usePoiViewportSync, type PoiMapLike } from "@/components/poi/usePoiViewportSync"
+import { Slider } from "@/components/ui/slider"
 import type { Destination } from "@/app-types"
 
 type PoiCategory = Destination["value"]
@@ -40,6 +41,11 @@ type PoiMarkerRow = {
   lat: number
   count: number
   mixed: boolean
+}
+
+type PoiPreviewProps = {
+  gridTransparency: number
+  onGridTransparencyChange: (value: number) => void
 }
 
 type RawPoiRow = {
@@ -414,7 +420,10 @@ async function loadPois(): Promise<PoiRow[]> {
   return poiRowsPromise
 }
 
-export function PoiPreview() {
+export function PoiPreview({
+  gridTransparency,
+  onGridTransparencyChange,
+}: PoiPreviewProps) {
   const { current: map } = useMap()
   const [pois, setPois] = React.useState<PoiRow[]>([])
   const [loading, setLoading] = React.useState(false)
@@ -712,6 +721,30 @@ export function PoiPreview() {
         }}
         aria-label="Destination Entrances legend"
       >
+        <button
+          type="button"
+          onClick={() => setMobileLegendOpen(false)}
+          className="mobile-poi-close-button mobile-poi-popup-close-button h-6 w-6 items-center justify-center rounded text-black hover:bg-gray-100"
+          aria-label="Close Destination Entrances layers"
+        >
+          <X size={16} strokeWidth={2.5} />
+        </button>
+        <div className="mobile-layer-grid-slider">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Adjust grid transparency</div>
+            <div className={`shrink-0 tabular-nums ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
+              {gridTransparency}%
+            </div>
+          </div>
+          <Slider
+            value={[gridTransparency]}
+            min={0}
+            max={100}
+            step={1}
+            onValueChange={([value]) => onGridTransparencyChange(value)}
+            aria-label="Adjust grid transparency"
+          />
+        </div>
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
           <div className="flex items-center gap-1">
@@ -727,14 +760,6 @@ export function PoiPreview() {
               }
             >
               {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileLegendOpen(false)}
-              className="mobile-poi-close-button h-6 w-6 items-center justify-center rounded text-black hover:bg-gray-100"
-              aria-label="Close Destination Entrances layers"
-            >
-              <X size={16} strokeWidth={2.5} />
             </button>
           </div>
         </div>

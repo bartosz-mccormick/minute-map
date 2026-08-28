@@ -19,7 +19,6 @@ import {
   getMapPerformanceMode,
   shouldUseHexPerformanceFixture,
 } from "@/components/map-performance"
-import { LegendBands } from "./components/legend-bands"
 import { PoiPreview } from "./components/poi_preview"
 import { useDuckDbClient } from "@/hooks/use-duckdb-client"
 import { useMapIndicatorState } from "@/hooks/use-map-indicator-state"
@@ -300,7 +299,12 @@ export default function App() {
         }}
         drawRef={drawRef}
       >
-        {isBaseMapOnly ? null : <PoiPreview />}
+        {isBaseMapOnly ? null : (
+          <PoiPreview
+            gridTransparency={gridTransparency}
+            onGridTransparencyChange={setGridTransparency}
+          />
+        )}
       </HexMap>
 
       <div className="mobile-bottom-panel">
@@ -488,7 +492,12 @@ export default function App() {
       )}
 
       {isBaseMapOnly ? null : (
-      <Card className="indicator-panel fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2" style={{ left: "var(--left-panel-left)" }}>
+      <Card
+        className={`indicator-panel fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2 ${
+          hexData.length > 0 && activeBounds.length > 1 ? "has-chart-data" : ""
+        }`}
+        style={{ left: "var(--left-panel-left)" }}
+      >
         <CardContent className="p-3 space-y-3">
           <NestedDropdownSelect
             options={availableIndicators}
@@ -500,14 +509,8 @@ export default function App() {
             className={MAP_OVERLAY_PANEL_TITLE_CLASS}
             textClassName={MAP_OVERLAY_PANEL_TITLE_CLASS}
           />
-          {mapDataError ? (
+          {mapDataError && (
             <div className={`map-data-error ${MAP_OVERLAY_META_TEXT_CLASS}`}>{mapDataError}</div>
-          ) : (
-            <LegendBands
-              bounds={activeFillConfig.bounds}
-              colors={activeFillConfig.colors}
-              showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
-            />
           )}
         </CardContent>
       </Card>
@@ -529,6 +532,19 @@ export default function App() {
               onSelectRadarBin={handleSelectRadarBin}
               selectedCells={selectedCellsData}
               formatValue={fmt}
+              indicatorControl={(
+                <NestedDropdownSelect
+                  options={availableIndicators}
+                  value={selectedIndicator}
+                  onValueChange={handleIndicatorChange}
+                  placeholder="Select indicator"
+                  showPathInLabel
+                  pathSeparator=": "
+                  className={MAP_OVERLAY_PANEL_TITLE_CLASS}
+                  textClassName={MAP_OVERLAY_PANEL_TITLE_CLASS}
+                  widthClassName="w-full"
+                />
+              )}
               className="bg-white shadow-lg w-full"
             />
           )}

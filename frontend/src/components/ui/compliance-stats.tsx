@@ -38,6 +38,7 @@ interface ComplianceStatsProps {
   selectedCells?: HexItem[]
   /** Format axis labels (default: one decimal, no trailing .0) */
   formatValue?: (v: number) => string
+  indicatorControl?: React.ReactNode
   className?: string
 }
 
@@ -102,11 +103,24 @@ export function ComplianceStats({
   onSelectRadarBin,
   selectedCells,
   formatValue = defaultFormatValue,
+  indicatorControl,
   className = "fixed bottom-4 right-4 z-10 bg-white shadow-lg w-[380px]",
 }: ComplianceStatsProps) {
   const [plotType, setPlotType] = React.useState<(typeof PLOT_TYPES)[number]["value"]>("bar-chart")
   const [selectedRadarBinIndex, setSelectedRadarBinIndex] = React.useState<number | null>(null)
+  const [isMobile, setIsMobile] = React.useState(false)
   const chartRef = React.useRef<ReactECharts>(null)
+
+  React.useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 700px)")
+    const updateIsMobile = () => setIsMobile(mobileQuery.matches)
+
+    updateIsMobile()
+    mobileQuery.addEventListener("change", updateIsMobile)
+
+    return () => mobileQuery.removeEventListener("change", updateIsMobile)
+  }, [])
+
   const bins = React.useMemo<DisplayBin[]>(
     () => {
       const regularBins = buildBins(bounds).map((bin) => ({
@@ -396,10 +410,14 @@ export function ComplianceStats({
 
   if (data.length === 0) return null
 
+  const chartHeight = plotType === "radar-chart"
+    ? isMobile ? 220 : 300
+    : isMobile ? 190 : 260
+
   return (
     <Card className={`compliance-stats-card ${className} py-2`}>
       <CardContent className="px-4 pt-2 pb-3 space-y-2">
-        <div className="flex items-start">
+        <div className="compliance-stats-header flex items-start gap-2">
           <Select value={plotType} onValueChange={(value) => setPlotType(value as typeof plotType)}>
             <SelectTrigger
               size="sm"
@@ -415,6 +433,9 @@ export function ComplianceStats({
               ))}
             </SelectContent>
           </Select>
+          {indicatorControl ? (
+            <div className="mobile-chart-indicator-control">{indicatorControl}</div>
+          ) : null}
         </div>
         <div className={`h-[44px] border-b pb-2 ${showSummary ? "" : "border-transparent"}`}>
           {showSummary ? (
@@ -452,17 +473,13 @@ export function ComplianceStats({
             </div>
           )}
         </div>
-        <div className={`${plotType === "radar-chart" ? "h-[300px]" : "h-[260px]"} overflow-visible`}>
+        <div className="chart-frame overflow-visible" style={{ height: chartHeight }}>
           <div className="relative h-full w-full" onClick={handleRadarChartClick}>
             <ReactECharts
               ref={chartRef}
               key={plotType}
               option={chartOption}
-              style={
-                plotType === "radar-chart"
-                  ? { height: "300px", width: "100%" }
-                  : { height: "260px", width: "100%" }
-              }
+              style={{ height: chartHeight, width: "100%" }}
               opts={{ renderer: "canvas" }}
               onEvents={plotType === "bar-chart" ? onChartEvents : undefined}
             />
