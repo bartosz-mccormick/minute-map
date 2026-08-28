@@ -12,6 +12,23 @@ export interface Destination {
   icon: string
 }
 
+export interface CityConfig {
+  value: string
+  label: string
+  dataBucket: string | null
+  defaultPresetId?: string
+  features?: {
+    destinationEntrances?: boolean
+  }
+  viewState: {
+    longitude: number
+    latitude: number
+    zoom: number
+    pitch: number
+    bearing: number
+  }
+}
+
 export interface TransportMode {
   value: string
   label: string
@@ -121,6 +138,7 @@ export type MapWithEvents = {
 export interface HexMapProps {
   hexData: HexMapCell[]
   indicator: string
+  initialViewState: CityConfig["viewState"]
   fillBounds: number[]
   fillColors: Color[]
   showOverflowBin?: boolean

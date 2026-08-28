@@ -7,12 +7,13 @@ import getComplianceBatchSummarySql from "../sql/get-compliance-batch-summary.sq
 
 import {getDataFileUrl} from "../../app-config.ts"
 
-let complianceDatabaseIsSetup = false;
+const setupDataBuckets = new WeakMap<DuckDbClient, string | null | undefined>();
 
 export async function setupDb(
-  client: DuckDbClient
+  client: DuckDbClient,
+  dataBucket?: string | null
 ): Promise<void> {
-  if (complianceDatabaseIsSetup) {
+  if (setupDataBuckets.get(client) === dataBucket) {
     return;
   }
   
@@ -20,21 +21,21 @@ export async function setupDb(
 
   await db.registerFileURL(
     "grid.parquet",
-    getDataFileUrl("grid.parquet"),
+    getDataFileUrl("grid.parquet", dataBucket),
     duckdb.DuckDBDataProtocol.HTTP,
     false
   );
 
   await db.registerFileURL(
     "grid_access.parquet",
-    getDataFileUrl("grid_access.parquet"),
+    getDataFileUrl("grid_access.parquet", dataBucket),
     duckdb.DuckDBDataProtocol.HTTP,
     false
   );
 
   await db.registerFileURL(
     "entrances.parquet",
-    getDataFileUrl("entrances.parquet"),
+    getDataFileUrl("entrances.parquet", dataBucket),
     duckdb.DuckDBDataProtocol.HTTP,
     false
   );
@@ -112,5 +113,5 @@ export async function setupDb(
 
   await conn.query(getComplianceBatchSummarySql);
 
-  complianceDatabaseIsSetup = true;
+  setupDataBuckets.set(client, dataBucket);
 }

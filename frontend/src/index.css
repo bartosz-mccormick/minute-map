@@ -137,11 +137,16 @@
   display: contents;
 }
 
+.city-selector-panel {
+  width: 16.25rem;
+}
+
 .config-scroll-control {
   display: none;
 }
 
 .mobile-layer-grid-slider,
+.mobile-layer-city-control,
 .mobile-chart-indicator-control {
   display: none;
 }
@@ -328,6 +333,24 @@
     min-width: 0;
     padding: 0 0.75rem;
     transform: none;
+  }
+
+  .city-selector-panel {
+    display: none;
+  }
+
+  .mobile-layer-city-control {
+    display: block;
+    margin-bottom: 0.75rem;
+    padding-right: 2.5rem;
+  }
+
+  .mobile-layer-city-control .city-select-trigger {
+    width: 100%;
+    max-width: 15rem;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    box-shadow: none;
   }
 
   .configure-button svg {

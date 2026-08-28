@@ -2,6 +2,7 @@ import presetsConfig from "@/config/presets.json"
 import type {
   Color,
   BinConfig,
+  CityConfig,
   Destination,
   NestedOption,
   PresetDefinition,
@@ -24,8 +25,75 @@ export const INITIAL_VIEW_STATE = {
 // handle parquet files
 export const R2_BUCKET = import.meta.env.VITE_R2_BUCKET?.trim().replace(/\/+$/, "") || null;
   
-export const getDataFileUrl = (filename: string): string =>
-  R2_BUCKET ? `${R2_BUCKET}/${filename}` : `/data/${filename}`;
+export const getDataFileUrl = (filename: string, bucket = R2_BUCKET): string =>
+  bucket ? `${bucket}/${filename}` : `/data/${filename}`;
+
+function cityBucket(path: string) {
+  return `https://data.minutemap.online/${path}`
+}
+
+export const CITY_OPTIONS: CityConfig[] = [
+  {
+    value: "munich",
+    label: "Munich, DE",
+    dataBucket: R2_BUCKET,
+    defaultPresetId: "munich_general",
+    features: {
+      destinationEntrances: true,
+    },
+    viewState: INITIAL_VIEW_STATE,
+  },
+  {
+    value: "utrecht",
+    label: "Utrecht, NL",
+    dataBucket: cityBucket("utrecht"),
+    defaultPresetId: "utrecht_general",
+    viewState: { longitude: 5.11912, latitude: 52.09369, zoom: 11.8, pitch: 0, bearing: 0 },
+  },
+  {
+    value: "rakosmente",
+    label: "Rakosmente (Budapest, HU)",
+    dataBucket: cityBucket("rakosmente"),
+    defaultPresetId: "budapest_general",
+    viewState: { longitude: 19.27001, latitude: 47.47023, zoom: 12, pitch: 0, bearing: 0 },
+  },
+  {
+    value: "liesing",
+    label: "Liesing (Vienna, AT)",
+    dataBucket: cityBucket("liesing"),
+    defaultPresetId: "vienna_general",
+    viewState: { longitude: 16.28298, latitude: 48.13573, zoom: 12, pitch: 0, bearing: 0 },
+  },
+  {
+    value: "geretsried",
+    label: "Geretsried, DE",
+    dataBucket: cityBucket("geretsried"),
+    defaultPresetId: "munich_general",
+    viewState: { longitude: 11.46147, latitude: 47.87307, zoom: 12, pitch: 0, bearing: 0 },
+  },
+  {
+    value: "noh",
+    label: "Neder-Over-Heembeek (Brussels, BE)",
+    dataBucket: cityBucket("noh"),
+    defaultPresetId: "brussels_general",
+    viewState: { longitude: 4.41858, latitude: 50.89126, zoom: 13, pitch: 0, bearing: 0 },
+  },
+  {
+    value: "evry-courcouronnes",
+    label: "Evry-Courcouronnes (Paris, FR)",
+    dataBucket: cityBucket("evry-courcouronnes"),
+    defaultPresetId: "paris_general",
+    viewState: { longitude: 2.42612, latitude: 48.62579, zoom: 11.5, pitch: 0, bearing: 0 },
+  },
+]
+
+export const INITIAL_CITY = CITY_OPTIONS[0]
+
+export type CityFeature = "destinationEntrances"
+
+export function hasCityFeature(city: CityConfig, feature: CityFeature) {
+  return city.features?.[feature] === true
+}
 
 export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 export const MAX_TT = 30

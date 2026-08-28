@@ -20,6 +20,38 @@ export type MapLibreHexLayerMapLike = {
   setPaintProperty: (layerId: string, name: string, value: unknown) => void
 }
 
+function safeGetLayer(mapLike: MapLibreHexLayerMapLike, id: string) {
+  try {
+    return mapLike.getLayer(id)
+  } catch {
+    return null
+  }
+}
+
+function safeGetSource(mapLike: MapLibreHexLayerMapLike, id: string) {
+  try {
+    return mapLike.getSource(id)
+  } catch {
+    return null
+  }
+}
+
+function safeRemoveLayer(mapLike: MapLibreHexLayerMapLike, id: string) {
+  try {
+    if (safeGetLayer(mapLike, id)) mapLike.removeLayer(id)
+  } catch {
+    // MapLibre may already have destroyed the style during map unmount.
+  }
+}
+
+function safeRemoveSource(mapLike: MapLibreHexLayerMapLike, id: string) {
+  try {
+    if (safeGetSource(mapLike, id)) mapLike.removeSource(id)
+  } catch {
+    // MapLibre may already have destroyed the style during map unmount.
+  }
+}
+
 export function syncHexMapLayer(
   mapLike: MapLibreHexLayerMapLike,
   data: HexFeatureCollection,
@@ -68,9 +100,9 @@ export function syncHexMapLayer(
 }
 
 export function removeHexMapLayer(mapLike: MapLibreHexLayerMapLike) {
-  if (mapLike.getLayer(HEX_LINE_LAYER_ID)) mapLike.removeLayer(HEX_LINE_LAYER_ID)
-  if (mapLike.getLayer(HEX_FILL_LAYER_ID)) mapLike.removeLayer(HEX_FILL_LAYER_ID)
-  if (mapLike.getSource(HEX_SOURCE_ID)) mapLike.removeSource(HEX_SOURCE_ID)
+  safeRemoveLayer(mapLike, HEX_LINE_LAYER_ID)
+  safeRemoveLayer(mapLike, HEX_FILL_LAYER_ID)
+  safeRemoveSource(mapLike, HEX_SOURCE_ID)
 }
 
 export function syncSelectedHexMapLayer(
@@ -116,13 +148,7 @@ export function syncSelectedHexMapLayer(
 }
 
 export function removeSelectedHexMapLayer(mapLike: MapLibreHexLayerMapLike) {
-  if (mapLike.getLayer(SELECTED_HEX_LINE_LAYER_ID)) {
-    mapLike.removeLayer(SELECTED_HEX_LINE_LAYER_ID)
-  }
-  if (mapLike.getLayer(SELECTED_HEX_FILL_LAYER_ID)) {
-    mapLike.removeLayer(SELECTED_HEX_FILL_LAYER_ID)
-  }
-  if (mapLike.getSource(SELECTED_HEX_SOURCE_ID)) {
-    mapLike.removeSource(SELECTED_HEX_SOURCE_ID)
-  }
+  safeRemoveLayer(mapLike, SELECTED_HEX_LINE_LAYER_ID)
+  safeRemoveLayer(mapLike, SELECTED_HEX_FILL_LAYER_ID)
+  safeRemoveSource(mapLike, SELECTED_HEX_SOURCE_ID)
 }

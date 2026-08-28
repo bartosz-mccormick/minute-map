@@ -46,6 +46,8 @@ type PoiMarkerRow = {
 type PoiPreviewProps = {
   gridTransparency: number
   onGridTransparencyChange: (value: number) => void
+  cityControl?: React.ReactNode
+  destinationEntrancesEnabled: boolean
 }
 
 type RawPoiRow = {
@@ -423,6 +425,8 @@ async function loadPois(): Promise<PoiRow[]> {
 export function PoiPreview({
   gridTransparency,
   onGridTransparencyChange,
+  cityControl,
+  destinationEntrancesEnabled,
 }: PoiPreviewProps) {
   const { current: map } = useMap()
   const [pois, setPois] = React.useState<PoiRow[]>([])
@@ -453,7 +457,7 @@ export function PoiPreview({
   React.useEffect(() => {
     let cancelled = false
 
-    if (enabledCategories.size === 0 || pois.length > 0) {
+    if (!destinationEntrancesEnabled || enabledCategories.size === 0 || pois.length > 0) {
       setLoading(false)
       return
     }
@@ -480,7 +484,7 @@ export function PoiPreview({
     return () => {
       cancelled = true
     }
-  }, [enabledCategories.size, pois.length])
+  }, [destinationEntrancesEnabled, enabledCategories.size, pois.length])
 
   const visiblePois = React.useMemo(
     () => pois.filter((poi) => enabledCategories.has(poi.category)),
@@ -530,6 +534,8 @@ export function PoiPreview({
 
   const poiLayers = React.useMemo(() => {
     incrementPoiPerfCounter("poiLayers")
+
+    if (!destinationEntrancesEnabled) return []
 
     if (!showDetailedMarkers) {
       return [
@@ -603,6 +609,7 @@ export function PoiPreview({
     markerRows,
     showDetailedMarkers,
     typedMarkerRows,
+    destinationEntrancesEnabled,
   ])
 
   const toggleCategory = React.useCallback((category: PoiCategory) => {
@@ -692,15 +699,17 @@ export function PoiPreview({
           ))}
         </div>
       ) : null}
-      <button
-        type="button"
-        onClick={() => setMobileLegendOpen((open) => !open)}
-        className="mobile-poi-layer-button maplibregl-ctrl maplibregl-ctrl-group"
-        aria-label="Open Destination Entrances layers"
-      >
-        <Layers size={20} />
-      </button>
-      {mobileLegendOpen ? (
+      {destinationEntrancesEnabled ? (
+        <button
+          type="button"
+          onClick={() => setMobileLegendOpen((open) => !open)}
+          className="mobile-poi-layer-button maplibregl-ctrl maplibregl-ctrl-group"
+          aria-label="Open Destination Entrances layers"
+        >
+          <Layers size={20} />
+        </button>
+      ) : null}
+      {destinationEntrancesEnabled && mobileLegendOpen ? (
         <button
           type="button"
           className="mobile-poi-backdrop"
@@ -708,8 +717,9 @@ export function PoiPreview({
           onClick={() => setMobileLegendOpen(false)}
         />
       ) : null}
-      <div
-        className={`poi-legend-panel fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur ${
+      {destinationEntrancesEnabled ? (
+        <div
+          className={`poi-legend-panel fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur ${
           mobileLegendOpen ? "is-mobile-open" : ""
         }`}
         style={{
@@ -729,6 +739,9 @@ export function PoiPreview({
         >
           <X size={16} strokeWidth={2.5} />
         </button>
+        {cityControl ? (
+          <div className="mobile-layer-city-control">{cityControl}</div>
+        ) : null}
         <div className="mobile-layer-grid-slider">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Adjust grid transparency</div>
@@ -809,7 +822,8 @@ export function PoiPreview({
             ) : null}
           </div>
         )}
-      </div>
+        </div>
+      ) : null}
     </>
   )
 }

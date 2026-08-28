@@ -36,6 +36,8 @@ import {
 import {
   DESTINATIONS,
   fmt,
+  CITY_OPTIONS,
+  INITIAL_CITY,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
   INITIAL_WEIGHTS,
@@ -43,6 +45,8 @@ import {
   PRESET_NESTED_OPTIONS,
   PRESETS,
   TRANSPORT_MODES,
+  ALWAYS_AVAILABLE_INDICATORS,
+  hasCityFeature,
   isMinTravelTimeIndicator,
 } from "@/app-config"
 import type { MapboxDrawApi, Threshold, Weight } from "@/app-types"
@@ -60,6 +64,7 @@ export default function App() {
   const mapPerformanceMode = getMapPerformanceMode()
   const isBaseMapOnly = mapPerformanceMode === "base"
   const useHexPerformanceFixture = shouldUseHexPerformanceFixture()
+  const [selectedCity, setSelectedCity] = React.useState(INITIAL_CITY)
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
   const [selectedPreset, setSelectedPreset] = React.useState("custom")
   const [thresholds, setThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
@@ -70,10 +75,11 @@ export default function App() {
   const [configScrollControl, setConfigScrollControl] = React.useState<"down" | "up" | null>(null)
   const [gridTransparency, setGridTransparency] = React.useState(65)
   const configDialogRef = React.useRef<HTMLDivElement | null>(null)
+  const hasDestinationEntrances = hasCityFeature(selectedCity, "destinationEntrances")
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
-  const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture)
+  const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture, selectedCity.dataBucket)
   const {
     selectedCellDetails,
     selectedCellDetailsCellId,
@@ -196,6 +202,68 @@ export default function App() {
     setCustomWeights(INITIAL_WEIGHTS)
   }
 
+  const applyPreset = React.useCallback((
+    presetId: string,
+    options: { preserveCustom?: boolean } = {}
+  ) => {
+    if (presetId === "custom") return false
+
+    const preset = PRESETS[presetId]
+    if (!preset) return false
+
+    const nextWeights: Weight[] = DESTINATIONS.map((destination) => ({
+      id: `weight-${destination.value}`,
+      selectedDestinations: [destination.value],
+      weight: preset.weights[destination.value] ?? 1,
+    }))
+
+    const nextThresholds: Threshold[] = DESTINATIONS.map((destination) => {
+      const thresholdPreset =
+        preset.thresholds[destination.value] ?? {
+          selectedDestinations: [destination.value],
+          quantity: 1,
+          transportMode: "walk",
+          travelTime: 10,
+        }
+
+      return {
+        id: crypto.randomUUID(),
+        ...thresholdPreset,
+      }
+    })
+
+    setWeights(nextWeights)
+    setThresholds(nextThresholds)
+    if (options.preserveCustom === false) {
+      setCustomWeights(nextWeights)
+      setCustomThresholds(nextThresholds)
+    }
+    return true
+  }, [])
+
+  const handleCityChange = (cityValue: string) => {
+    const nextCity = CITY_OPTIONS.find((city) => city.value === cityValue)
+    if (!nextCity || nextCity.value === selectedCity.value) return
+
+    setSelectedCity(nextCity)
+    const didApplyPreset = nextCity.defaultPresetId
+      ? applyPreset(nextCity.defaultPresetId, { preserveCustom: false })
+      : false
+    if (didApplyPreset && nextCity.defaultPresetId) {
+      setSelectedPreset(nextCity.defaultPresetId)
+    } else {
+      setSelectedPreset("custom")
+      setThresholds(INITIAL_THRESHOLDS)
+      setWeights(INITIAL_WEIGHTS)
+      setCustomThresholds(INITIAL_THRESHOLDS)
+      setCustomWeights(INITIAL_WEIGHTS)
+    }
+    setAvailableIndicators(ALWAYS_AVAILABLE_INDICATORS)
+    setDrawnPolygons([])
+    resetSelectedCells()
+    clearMapData("Run analysis to load map data.")
+  }
+
   const updateConfigScrollControl = React.useCallback(() => {
     const dialog = configDialogRef.current
     if (!dialog) {
@@ -230,36 +298,24 @@ export default function App() {
     })
   }
 
-  const applyPreset = (presetId: string) => {
-    if (presetId === "custom") return
-
-    const preset = PRESETS[presetId]
-    if (!preset) return
-
-    const nextWeights: Weight[] = DESTINATIONS.map((destination) => ({
-      id: `weight-${destination.value}`,
-      selectedDestinations: [destination.value],
-      weight: preset.weights[destination.value] ?? 1,
-    }))
-
-    const nextThresholds: Threshold[] = DESTINATIONS.map((destination) => {
-      const thresholdPreset =
-        preset.thresholds[destination.value] ?? {
-          selectedDestinations: [destination.value],
-          quantity: 1,
-          transportMode: "walk",
-          travelTime: 10,
-        }
-
-      return {
-        id: crypto.randomUUID(),
-        ...thresholdPreset,
-      }
-    })
-
-    setWeights(nextWeights)
-    setThresholds(nextThresholds)
-  }
+  const citySelectorControl = (
+    <Select value={selectedCity.value} onValueChange={handleCityChange}>
+      <SelectTrigger className={`city-select-trigger h-10 w-[260px] bg-white shadow-lg ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>
+        <SelectValue placeholder="Select city" />
+      </SelectTrigger>
+      <SelectContent>
+        {CITY_OPTIONS.map((city) => (
+          <SelectItem
+            key={city.value}
+            value={city.value}
+            className={MAP_OVERLAY_BODY_MAIN_CLASS}
+          >
+            {city.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
 
   return (
     <div className="app-shell h-screen w-full relative bg-gray-50" style={leftPanelLayoutStyle}>
@@ -278,9 +334,16 @@ export default function App() {
           </button>
         </nav>
       </header>
+      {isBaseMapOnly ? null : (
+        <div className="city-selector-panel fixed top-4 right-48 z-10">
+          {citySelectorControl}
+        </div>
+      )}
       <HexMap
+        key={selectedCity.value}
         hexData={hexData}
         indicator={selectedIndicator}
+        initialViewState={selectedCity.viewState}
         fillBounds={activeFillConfig.bounds}
         fillColors={activeFillConfig.colors}
         showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
@@ -303,6 +366,8 @@ export default function App() {
           <PoiPreview
             gridTransparency={gridTransparency}
             onGridTransparencyChange={setGridTransparency}
+            cityControl={citySelectorControl}
+            destinationEntrancesEnabled={hasDestinationEntrances}
           />
         )}
       </HexMap>

@@ -18,7 +18,7 @@ import type {
   MapWithEvents,
   MapboxDrawRef,
 } from "@/app-types"
-import { INITIAL_VIEW_STATE, MAP_STYLE } from "@/app-config"
+import { MAP_STYLE } from "@/app-config"
 import {
   getHexLineWidthMinPixels,
   getHexPerformanceVariant,
@@ -450,6 +450,7 @@ function DrawToolbar({
 export function HexMap({
   hexData,
   indicator,
+  initialViewState,
   fillBounds,
   fillColors,
   showOverflowBin = false,
@@ -636,7 +637,7 @@ export function HexMap({
 
   return (
     <Map
-      initialViewState={INITIAL_VIEW_STATE}
+      initialViewState={initialViewState}
       mapStyle={MAP_STYLE}
       onClick={renderNativeHexLayer ? handleNativeHexClick : undefined}
       style={{ width: "100%", height: "100%" }}
