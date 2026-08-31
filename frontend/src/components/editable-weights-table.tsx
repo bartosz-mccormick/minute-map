@@ -10,24 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-export interface Weight {
-  id: string
-  selectedDestinations: string[]
-  weight: number
-}
-
-export interface Destination {
-  value: string
-  label: string
-  icon: string
-}
-
-interface EditableWeightsTableProps {
-  weights: Weight[]
-  setWeights: (weights: Weight[]) => void
-  destinations: Destination[]
-}
+import {
+  MAP_OVERLAY_BODY_MAIN_CLASS,
+  MAP_OVERLAY_PANEL_TITLE_CLASS,
+} from "@/lib/map-overlay-styles"
+import { getDestinationIcon, getDestinationLabel } from "@/app-config"
+import type { EditableWeightsTableProps, Weight } from "@/app-types"
 
 export function EditableWeightsTable({
   weights,
@@ -62,12 +50,12 @@ export function EditableWeightsTable({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="config-weights-table space-y-4">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Destination</TableHead>
-            <TableHead className="w-[120px]">Weight</TableHead>
+            <TableHead className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination</TableHead>
+            <TableHead className={`w-[120px] ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>Weight</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -75,8 +63,10 @@ export function EditableWeightsTable({
             <TableRow key={destination.value}>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <span>{destination.icon}</span>
-                  <span>{destination.label}</span>
+                  <span>{getDestinationIcon(destination.value)}</span>
+                  <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>
+                    {getDestinationLabel(destination.value)}
+                  </span>
                 </div>
               </TableCell>
               <TableCell>
@@ -88,7 +78,7 @@ export function EditableWeightsTable({
                   }
                   min={0}
                   step={0.1}
-                  className="w-full"
+                  className={`w-full ${MAP_OVERLAY_BODY_MAIN_CLASS}`}
                 />
               </TableCell>
             </TableRow>

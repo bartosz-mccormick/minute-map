@@ -33,33 +33,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-
-export interface Threshold {
-  id: string
-  selectedDestinations: string[]
-  quantity: number
-  transportMode: string
-  travelTime: number
-}
-
-export interface TransportMode {
-  value: string
-  label: string
-}
-
-export interface Destination {
-  value: string
-  label: string
-  icon: string
-}
-
-interface EditableThresholdsTableProps {
-  thresholds: Threshold[]
-  setThresholds: (thresholds: Threshold[]) => void
-  transportModes: TransportMode[]
-  destinations: Destination[]
-  maxTravelTime?: number
-}
+import {
+  MAP_OVERLAY_BODY_MAIN_CLASS,
+  MAP_OVERLAY_PANEL_TITLE_CLASS,
+} from "@/lib/map-overlay-styles"
+import { getDestinationIcon, getDestinationLabel } from "@/app-config"
+import type { EditableThresholdsTableProps, Threshold } from "@/app-types"
 
 export function EditableThresholdsTable({
   thresholds,
@@ -116,23 +95,15 @@ export function EditableThresholdsTable({
     )
   }
 
-  const getDestinationLabel = (value: string) => {
-    return destinations.find((d) => d.value === value)?.label || value
-  }
-
-  const getDestinationIcon = (value: string) => {
-    return destinations.find((d) => d.value === value)?.icon || ""
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="config-thresholds-table space-y-4">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Destinations</TableHead>
-            <TableHead className="w-[100px]">Quantity</TableHead>
-            <TableHead className="w-[160px]">Mode</TableHead>
-            <TableHead className="w-[100px]">Time (min)</TableHead>
+            <TableHead className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destinations</TableHead>
+            <TableHead className={`w-[100px] ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>Quantity</TableHead>
+            <TableHead className={`w-[160px] ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>Mode</TableHead>
+            <TableHead className={`w-[100px] ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>Time (min)</TableHead>
             <TableHead className="w-[50px]"></TableHead>
           </TableRow>
         </TableHeader>
@@ -141,7 +112,7 @@ export function EditableThresholdsTable({
             <TableRow key={threshold.id}>
               <TableCell>
                 <div className="flex flex-wrap items-center gap-1.5">
-                <Popover
+                  <Popover
                     open={openDestinationPopover === threshold.id}
                     onOpenChange={(open) =>
                       setOpenDestinationPopover(open ? threshold.id : null)
@@ -153,23 +124,29 @@ export function EditableThresholdsTable({
                         size="sm"
                         role="combobox"
                         aria-expanded={openDestinationPopover === threshold.id}
-                        className="h-7 px-2 text-xs bg-transparent"
+                        className={`h-7 px-2 bg-transparent ${MAP_OVERLAY_BODY_MAIN_CLASS}`}
                       >
                         <Plus className="h-3 w-3 mr-1" />
-                        Add
+                        <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>Add</span>
                         <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[220px] p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Search destinations..." />
+                        <CommandInput
+                          className={MAP_OVERLAY_BODY_MAIN_CLASS}
+                          placeholder="Search destinations..."
+                        />
                         <CommandList>
-                          <CommandEmpty>No destinations found.</CommandEmpty>
+                          <CommandEmpty className={MAP_OVERLAY_BODY_MAIN_CLASS}>
+                            No destinations found.
+                          </CommandEmpty>
                           <CommandGroup>
                             {destinations.map((destination) => (
                               <CommandItem
                                 key={destination.value}
                                 value={destination.value}
+                                className={MAP_OVERLAY_BODY_MAIN_CLASS}
                                 onSelect={() =>
                                   toggleDestination(threshold.id, destination.value)
                                 }
@@ -183,8 +160,10 @@ export function EditableThresholdsTable({
                                       : "opacity-0"
                                   }`}
                                 />
-                                <span className="mr-2">{destination.icon}</span>
-                                {destination.label}
+                                <span className="mr-2">{getDestinationIcon(destination.value)}</span>
+                                <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>
+                                  {getDestinationLabel(destination.value)}
+                                </span>
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -197,10 +176,10 @@ export function EditableThresholdsTable({
                     <Badge
                       key={dest}
                       variant="secondary"
-                      className="text-xs pr-1 flex items-center gap-1"
+                      className="pr-1 flex items-center gap-1"
                     >
                       <span>{getDestinationIcon(dest)}</span>
-                      <span>{getDestinationLabel(dest)}</span>
+                      <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>{getDestinationLabel(dest)}</span>
                       <button
                         type="button"
                         onClick={() => removeDestination(threshold.id, dest)}
@@ -211,7 +190,6 @@ export function EditableThresholdsTable({
                       </button>
                     </Badge>
                   ))}
-
                 </div>
               </TableCell>
               <TableCell>
@@ -226,7 +204,7 @@ export function EditableThresholdsTable({
                     )
                   }
                   min={1}
-                  className="w-full"
+                  className={`w-full ${MAP_OVERLAY_BODY_MAIN_CLASS}`}
                 />
               </TableCell>
               <TableCell>
@@ -236,12 +214,12 @@ export function EditableThresholdsTable({
                     updateThreshold(threshold.id, "transportMode", value)
                   }
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={`w-full ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
                     <SelectValue placeholder="Select mode" />
                   </SelectTrigger>
                   <SelectContent>
                     {transportModes.map((mode) => (
-                      <SelectItem key={mode.value} value={mode.value}>
+                      <SelectItem key={mode.value} value={mode.value} className={MAP_OVERLAY_BODY_MAIN_CLASS}>
                         {mode.label}
                       </SelectItem>
                     ))}
@@ -261,7 +239,7 @@ export function EditableThresholdsTable({
                   }
                   min={1}
                   max={maxTravelTime}
-                  className="w-full"
+                  className={`w-full ${MAP_OVERLAY_BODY_MAIN_CLASS}`}
                 />
               </TableCell>
               <TableCell>
@@ -278,7 +256,7 @@ export function EditableThresholdsTable({
           ))}
           {thresholds.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+              <TableCell colSpan={5} className={`h-24 text-center ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
                 No thresholds configured. Click the button below to add one.
               </TableCell>
             </TableRow>
@@ -291,7 +269,7 @@ export function EditableThresholdsTable({
         className="w-full bg-transparent"
       >
         <Plus className="h-4 w-4 mr-2" />
-        Add Threshold
+        <span className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Add Threshold</span>
       </Button>
     </div>
   )

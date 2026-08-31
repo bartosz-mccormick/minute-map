@@ -1,0 +1,143 @@
+{
+  "_groups": {
+    "amenity_weights": {
+      "grocery": 0.62,
+      "pharmacy": 0.38,
+      "atm_bank": 0.17,
+      "post": 0.25,
+      "gp": 0.29,
+      "restaurant": 0.25,
+      "cafe": 0.21,
+      "bar": 1,
+      "bakery": 0.67,
+      "school": 0.21,
+      "kindergarten": 0.11,
+      "library": 0.04,
+      "sport": 0.21,
+      "park": 0.21,
+      "playground": 0.08
+    },
+    "amenity_thresholds": [
+      {
+        "mode": "walk",
+        "T": 15,
+        "X": 3,
+        "amenities": [
+          "grocery"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 45,
+        "X": 3,
+        "amenities": [
+          "pharmacy"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 2,
+        "amenities": [
+          "atm_bank"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 15,
+        "X": 1,
+        "amenities": [
+          "post"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 20,
+        "X": 2,
+        "amenities": [
+          "gp"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 15,
+        "X": 4,
+        "amenities": [
+          "restaurant"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 3,
+        "amenities": [
+          "cafe"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 1,
+        "amenities": [
+          "bar"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 3,
+        "amenities": [
+          "bakery"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 20,
+        "X": 2,
+        "amenities": [
+          "school"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 2,
+        "amenities": [
+          "kindergarten"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 1,
+        "amenities": [
+          "library"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 15,
+        "X": 3,
+        "amenities": [
+          "sport"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 3,
+        "amenities": [
+          "park"
+        ]
+      },
+      {
+        "mode": "walk",
+        "T": 10,
+        "X": 4,
+        "amenities": [
+          "playground"
+        ]
+      }
+    ]
+  }
+}

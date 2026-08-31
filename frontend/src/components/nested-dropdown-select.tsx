@@ -1,6 +1,8 @@
 import * as React from "react"
 import { ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { NestedOption } from "@/app-types"
+import { MAP_OVERLAY_PANEL_TITLE_CLASS } from "@/lib/map-overlay-styles"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,15 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export type NestedOption = {
-  value: string
-  label: string
-  children?: NestedOption[]
-  /** If true, clicking this item selects it even if it has children (default: false) */
-  selectableWhenHasChildren?: boolean
-  /** Optional: disable an item */
-  disabled?: boolean
-}
+export type { NestedOption } from "@/app-types"
 
 type NestedDropdownSelectProps = {
   options: NestedOption[]
@@ -29,6 +23,7 @@ type NestedDropdownSelectProps = {
   placeholder?: string
   className?: string
   contentClassName?: string
+  textClassName?: string
 
   /** Default: true. If false, label shows only the selected node label (no path). */
   showPathInLabel?: boolean
@@ -59,11 +54,23 @@ export function NestedDropdownSelect({
   placeholder = "Select option",
   className,
   contentClassName,
+  textClassName = MAP_OVERLAY_PANEL_TITLE_CLASS,
   showPathInLabel = true,
   pathSeparator = " / ",
   widthClassName = "w-[280px]",
 }: NestedDropdownSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 700px)")
+    const updateIsMobile = () => setIsMobile(mobileQuery.matches)
+
+    updateIsMobile()
+    mobileQuery.addEventListener("change", updateIsMobile)
+
+    return () => mobileQuery.removeEventListener("change", updateIsMobile)
+  }, [])
 
   const selectedPath = React.useMemo(() => {
     if (!value) return null
@@ -71,15 +78,15 @@ export function NestedDropdownSelect({
   }, [options, value])
 
   const displayLabelElement = React.useMemo(() => {
-    if (!value || !selectedPath?.length) return <span>{placeholder}</span>
+    if (!value || !selectedPath?.length) return <span className={textClassName}>{placeholder}</span>
     if (!showPathInLabel) {
-      return <span>{selectedPath[selectedPath.length - 1]?.label ?? placeholder}</span>
+      return <span className={textClassName}>{selectedPath[selectedPath.length - 1]?.label ?? placeholder}</span>
     }
     const labels = selectedPath.map((n) => n.label)
     // If pathSeparator contains ":", wrap after each colon
     if (pathSeparator.includes(":")) {
       return (
-        <span className="whitespace-pre-line text-left">
+        <span className={`whitespace-pre-line text-left ${textClassName}`}>
           {labels.map((label, idx) => (
             <React.Fragment key={idx}>
               {idx > 0 && ":\n"}
@@ -89,8 +96,8 @@ export function NestedDropdownSelect({
         </span>
       )
     }
-    return <span>{labels.join(pathSeparator)}</span>
-  }, [value, selectedPath, placeholder, showPathInLabel, pathSeparator])
+    return <span className={textClassName}>{labels.join(pathSeparator)}</span>
+  }, [value, selectedPath, placeholder, showPathInLabel, pathSeparator, textClassName])
 
   const handleSelect = (nextValue: string) => {
     onValueChange(nextValue)
@@ -105,6 +112,7 @@ export function NestedDropdownSelect({
       return (
         <DropdownMenuSub key={opt.value}>
           <DropdownMenuSubTrigger
+            className={textClassName}
             disabled={opt.disabled}
             // If selectableWhenHasChildren is true, allow click to select (and still provide submenu via hover/keyboard)
             onClick={(e) => {
@@ -117,7 +125,10 @@ export function NestedDropdownSelect({
           >
             {opt.label}
           </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
+          <DropdownMenuSubContent
+            collisionPadding={12}
+            className="nested-dropdown-sub-content"
+          >
             {opt.children!.map((child) => renderOption(child))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -127,11 +138,53 @@ export function NestedDropdownSelect({
     return (
       <DropdownMenuItem
         key={opt.value}
+        className={textClassName}
         disabled={opt.disabled}
         onClick={() => handleSelect(opt.value)}
       >
         {opt.label}
       </DropdownMenuItem>
+    )
+  }
+
+  const renderMobileOption = (opt: NestedOption, depth = 0) => {
+    const hasChildren = !!opt.children?.length
+    const canSelect = !hasChildren || opt.selectableWhenHasChildren
+    const isSelected = opt.value === value
+    const itemClassName = [
+      "nested-dropdown-tree-item",
+      textClassName,
+      isSelected ? "is-selected" : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+
+    return (
+      <div
+        key={opt.value}
+        className="nested-dropdown-tree-node"
+        style={{ "--tree-depth": depth } as React.CSSProperties}
+      >
+        {canSelect ? (
+          <button
+            type="button"
+            className={itemClassName}
+            disabled={opt.disabled}
+            onClick={() => handleSelect(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ) : (
+          <div className={itemClassName} aria-disabled={opt.disabled}>
+            {opt.label}
+          </div>
+        )}
+        {hasChildren ? (
+          <div className="nested-dropdown-tree-children">
+            {opt.children!.map((child) => renderMobileOption(child, depth + 1))}
+          </div>
+        ) : null}
+      </div>
     )
   }
 
@@ -154,14 +207,16 @@ export function NestedDropdownSelect({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
+        collisionPadding={12}
         className={[
+          "nested-dropdown-content",
           widthClassName,
           contentClassName,
         ]
           .filter(Boolean)
           .join(" ")}
       >
-        {options.map((opt) => renderOption(opt))}
+        {isMobile ? options.map((opt) => renderMobileOption(opt)) : options.map((opt) => renderOption(opt))}
       </DropdownMenuContent>
     </DropdownMenu>
   )
