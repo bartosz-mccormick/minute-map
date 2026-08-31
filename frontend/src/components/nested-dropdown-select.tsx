@@ -189,7 +189,7 @@ export function NestedDropdownSelect({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={setOpen} dir={isMobile ? "ltr" : "rtl"}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
@@ -210,6 +210,7 @@ export function NestedDropdownSelect({
         collisionPadding={12}
         className={[
           "nested-dropdown-content",
+          "direction-ltr",
           widthClassName,
           contentClassName,
         ]

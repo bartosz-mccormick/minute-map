@@ -132,6 +132,10 @@
   display: none;
 }
 
+.direction-ltr {
+  direction: ltr;
+}
+
 .desktop-poi-layer-button {
   position: fixed;
   top: 14.25rem;
@@ -170,6 +174,10 @@
   width: auto;
   max-width: min(12rem, 55vw);
   height: 2rem;
+}
+
+.mobile-app-logo-mark {
+  display: none;
 }
 
 .mobile-app-nav {
@@ -251,6 +259,13 @@
 }
 
 @media (min-width: 701px) {
+  .indicator-panel {
+    right: 1rem;
+    bottom: 2.5rem;
+    left: auto;
+    width: 380px;
+  }
+
   .indicator-panel.has-chart-data {
     display: none;
   }
@@ -397,10 +412,34 @@
 
   .mobile-app-header {
     position: sticky;
+    padding: 0 0.75rem;
+  }
+
+  .mobile-app-logo-full {
+    display: none;
+  }
+
+  .mobile-app-logo-mark {
+    display: block;
+    width: 2rem;
+    height: 2rem;
+    max-width: none;
+  }
+
+  .mobile-app-nav {
+    gap: 0;
   }
 
   .desktop-header-city-control {
-    display: none;
+    display: block;
+    width: min(13.75rem, calc(100vw - 7rem));
+    max-width: min(13.75rem, calc(100vw - 7rem));
+  }
+
+  .desktop-header-city-control .city-select-trigger {
+    height: 2.25rem;
+    width: 100%;
+    min-height: 2.25rem;
   }
 
   .app-shell > .maplibregl-map {
@@ -430,20 +469,6 @@
     min-width: 0;
     padding: 0 0.75rem;
     transform: none;
-  }
-
-  .mobile-layer-city-control {
-    display: block;
-    margin-bottom: 0.75rem;
-    padding-right: 2.5rem;
-  }
-
-  .mobile-layer-city-control .city-select-trigger {
-    width: 100%;
-    max-width: 15rem;
-    height: 2.25rem;
-    min-height: 2.25rem;
-    box-shadow: none;
   }
 
   .configure-button svg {
@@ -578,7 +603,7 @@
     width: auto;
     max-height: min(70dvh, 31rem) !important;
     overflow-y: auto;
-    padding-top: 2.4rem;
+    padding-top: 2.25rem;
     border-radius: 0.5rem;
   }
 

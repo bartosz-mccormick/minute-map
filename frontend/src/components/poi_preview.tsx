@@ -46,7 +46,6 @@ type PoiMarkerRow = {
 type PoiPreviewProps = {
   gridTransparency: number
   onGridTransparencyChange: (value: number) => void
-  cityControl?: React.ReactNode
   destinationEntrancesEnabled: boolean
 }
 
@@ -425,7 +424,6 @@ async function loadPois(): Promise<PoiRow[]> {
 export function PoiPreview({
   gridTransparency,
   onGridTransparencyChange,
-  cityControl,
   destinationEntrancesEnabled,
 }: PoiPreviewProps) {
   const { current: map } = useMap()
@@ -750,12 +748,9 @@ export function PoiPreview({
         >
           <X size={16} strokeWidth={2.5} />
         </button>
-        {cityControl ? (
-          <div className="mobile-layer-city-control">{cityControl}</div>
-        ) : null}
         <div className="mobile-layer-grid-slider">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Adjust grid transparency</div>
+            <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Adjust Grid Transparency</div>
             <div className={`shrink-0 tabular-nums ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
               {gridTransparency}%
             </div>

@@ -245,18 +245,11 @@ export default function App() {
     if (!nextCity || nextCity.value === selectedCity.value) return
 
     setSelectedCity(nextCity)
-    const didApplyPreset = nextCity.defaultPresetId
-      ? applyPreset(nextCity.defaultPresetId, { preserveCustom: false })
-      : false
-    if (didApplyPreset && nextCity.defaultPresetId) {
-      setSelectedPreset(nextCity.defaultPresetId)
-    } else {
-      setSelectedPreset("custom")
-      setThresholds(INITIAL_THRESHOLDS)
-      setWeights(INITIAL_WEIGHTS)
-      setCustomThresholds(INITIAL_THRESHOLDS)
-      setCustomWeights(INITIAL_WEIGHTS)
-    }
+    setSelectedPreset("custom")
+    setThresholds(INITIAL_THRESHOLDS)
+    setWeights(INITIAL_WEIGHTS)
+    setCustomThresholds(INITIAL_THRESHOLDS)
+    setCustomWeights(INITIAL_WEIGHTS)
     setAvailableIndicators(ALWAYS_AVAILABLE_INDICATORS)
     setDrawnPolygons([])
     resetSelectedCells()
@@ -320,17 +313,25 @@ export default function App() {
     <div className="app-shell h-screen w-full relative bg-gray-50" style={leftPanelLayoutStyle}>
       <header className="mobile-app-header">
         <img
-          className="mobile-app-logo"
+          className="mobile-app-logo mobile-app-logo-full"
           src="/data/logo/minutemap_logo_text.svg"
           alt="MinuteMap"
         />
+        <img
+          className="mobile-app-logo mobile-app-logo-mark"
+          src="/data/logo/minutemap_logo.svg"
+          alt="MinuteMap"
+        />
         <nav className="mobile-app-nav" aria-label="Primary navigation">
-          <button type="button" className="mobile-app-nav-link">
-            About
-          </button>
-          <button type="button" className="mobile-app-icon-button" aria-label="GitHub">
+          <a
+            className="mobile-app-icon-button"
+            href="https://github.com/bartosz-mccormick/minute-map"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub"
+          >
             <Github size={18} />
-          </button>
+          </a>
         </nav>
         {isBaseMapOnly ? null : (
           <div className="desktop-header-city-control">
@@ -365,7 +366,6 @@ export default function App() {
           <PoiPreview
             gridTransparency={gridTransparency}
             onGridTransparencyChange={setGridTransparency}
-            cityControl={renderCitySelectorControl()}
             destinationEntrancesEnabled={hasDestinationEntrances}
           />
         )}
@@ -538,7 +538,6 @@ export default function App() {
         className={`indicator-panel fixed bottom-4 z-10 bg-white backdrop-blur-sm shadow-lg p-2 ${
           hexData.length > 0 && activeBounds.length > 1 ? "has-chart-data" : ""
         }`}
-        style={{ left: "var(--left-panel-left)" }}
       >
         <CardContent className="p-3 space-y-3">
           <NestedDropdownSelect
