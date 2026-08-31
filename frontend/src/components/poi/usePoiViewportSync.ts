@@ -36,6 +36,7 @@ export function usePoiViewportSync({
 
   React.useEffect(() => {
     if (!map) return
+    let frameId: number | null = null
 
     const syncZoomMode = () => {
       const nextZoomMode = getPoiZoomMode(map.getZoom(), detailedZoom, closeZoom)
@@ -43,6 +44,16 @@ export function usePoiViewportSync({
       setPoiZoomMode((current) => {
         if (current === nextZoomMode) return current
         return nextZoomMode
+      })
+    }
+
+    const handleViewportChange = () => {
+      if (frameId !== null) return
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        syncZoomMode()
+        onViewportSettled()
       })
     }
 
@@ -60,12 +71,20 @@ export function usePoiViewportSync({
 
     map.on("movestart", handleInteractionStart)
     map.on("zoomstart", handleInteractionStart)
+    map.on("move", handleViewportChange)
+    map.on("zoom", handleViewportChange)
     map.on("moveend", handleInteractionEnd)
     map.on("zoomend", handleInteractionEnd)
 
     return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+
       map.off("movestart", handleInteractionStart)
       map.off("zoomstart", handleInteractionStart)
+      map.off("move", handleViewportChange)
+      map.off("zoom", handleViewportChange)
       map.off("moveend", handleInteractionEnd)
       map.off("zoomend", handleInteractionEnd)
     }

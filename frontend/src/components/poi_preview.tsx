@@ -135,8 +135,8 @@ const iconDefinitionByCategory = new Map(
 let poiRowsPromise: Promise<PoiRow[]> | null = null
 
 function DeckGLOverlay(props: ConstructorParameters<typeof DeckOverlay>[0]) {
-  const overlay = useControl(() => new DeckOverlay(props))
-  overlay.setProps(props)
+  const overlay = useControl(() => new DeckOverlay({ interleaved: true, ...props }))
+  overlay.setProps({ interleaved: true, ...props })
   return null
 }
 
@@ -698,16 +698,14 @@ export function PoiPreview({
           ))}
         </div>
       ) : null}
-      {destinationEntrancesEnabled ? (
-        <button
-          type="button"
-          onClick={() => setMobileLegendOpen((open) => !open)}
-          className="mobile-poi-layer-button maplibregl-ctrl maplibregl-ctrl-group"
-          aria-label="Open Destination Entrances layers"
-        >
-          <Layers size={20} />
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={() => setMobileLegendOpen((open) => !open)}
+        className="mobile-poi-layer-button maplibregl-ctrl maplibregl-ctrl-group"
+        aria-label="Open map layers"
+      >
+        <Layers size={20} />
+      </button>
       <button
         type="button"
         onClick={() => setDesktopLayerOpen((open) => !open)}
@@ -716,15 +714,15 @@ export function PoiPreview({
       >
         <Layers size={20} />
       </button>
-      {destinationEntrancesEnabled && mobileLegendOpen ? (
+      {mobileLegendOpen ? (
         <button
           type="button"
           className="mobile-poi-backdrop"
-          aria-label="Close Destination Entrances layers"
+          aria-label="Close map layers"
           onClick={() => setMobileLegendOpen(false)}
         />
       ) : null}
-      {desktopLayerOpen || (destinationEntrancesEnabled && mobileLegendOpen) ? (
+      {desktopLayerOpen || mobileLegendOpen ? (
         <div
           className={`poi-legend-panel fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur ${
           mobileLegendOpen ? "is-mobile-open" : ""
@@ -744,7 +742,7 @@ export function PoiPreview({
           type="button"
           onClick={() => setMobileLegendOpen(false)}
           className="mobile-poi-close-button mobile-poi-popup-close-button h-6 w-6 items-center justify-center rounded text-black hover:bg-gray-100"
-          aria-label="Close Destination Entrances layers"
+          aria-label="Close map layers"
         >
           <X size={16} strokeWidth={2.5} />
         </button>
