@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/minutemap_logo_text.svg" alt="MinuteMap logo" width="180">
-</p>
+<p align="center"> <picture> <source media="(prefers-color-scheme: dark)" srcset="assets/minutemap_logo_text_dark.svg"> <source media="(prefers-color-scheme: light)" srcset="assets/minutemap_logo_text.svg"> <img src="assets/minutemap_logo_text.svg" alt="MinuteMap logo" width="180"> </picture> </p>
 
 <p align="center"> <b><a href="https://minutemap.online">Open MinuteMap ↗</a></b>  </p>
 
