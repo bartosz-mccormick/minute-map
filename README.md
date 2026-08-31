@@ -56,7 +56,7 @@ DREAMS Project Deliverable 4.2. [PDF](https://dreams.mobyome.at/images/6/67/2026
 MinuteMap was developed as part of [DREAMS](https://dreams.mobyome.at/wiki/Main_Page), an international project exploring how the 15-Minute City can be adapted for the urban outskirts. The project was funded through [Driving Urban Transitions Partnership](https://dutpartnership.eu/).
 
 
-<p align="center"> <img src="assets/DREAMS-logo-transparent.png" alt="DREAMS project" height="70" align="middle">&nbsp;&nbsp;&nbsp; <img src="assets/DUT-logo.png" alt="DUT logo" height="40" align="middle">&nbsp;&nbsp;&nbsp; <img src="assets/eu-funding.png" alt="Co-funded by the EU" height="30" align="middle"> </p>
+<p align="center"> <img src="assets/DREAMS-logo-transparent.png" alt="DREAMS project" height="70" align="middle">&nbsp;&nbsp;&nbsp; <img src="assets/DUT-Logo.png" alt="DUT logo" height="40" align="middle">&nbsp;&nbsp;&nbsp; <img src="assets/eu-funding.png" alt="Co-funded by the EU" height="30" align="middle"> </p>
 
 
 
