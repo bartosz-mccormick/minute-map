@@ -434,6 +434,7 @@ export function PoiPreview({
   const [error, setError] = React.useState<string | null>(null)
   const [viewRevision, setViewRevision] = React.useState(0)
   const [legendOpen, setLegendOpen] = React.useState(false)
+  const [desktopLayerOpen, setDesktopLayerOpen] = React.useState(false)
   const [mobileLegendOpen, setMobileLegendOpen] = React.useState(false)
   const [enabledCategories, setEnabledCategories] = React.useState<Set<PoiCategory>>(() => new Set())
   const [hoveredPoiTooltip, setHoveredPoiTooltip] = React.useState<{
@@ -709,6 +710,14 @@ export function PoiPreview({
           <Layers size={20} />
         </button>
       ) : null}
+      <button
+        type="button"
+        onClick={() => setDesktopLayerOpen((open) => !open)}
+        className="desktop-poi-layer-button maplibregl-ctrl maplibregl-ctrl-group"
+        aria-label="Open map layers"
+      >
+        <Layers size={20} />
+      </button>
       {destinationEntrancesEnabled && mobileLegendOpen ? (
         <button
           type="button"
@@ -717,10 +726,12 @@ export function PoiPreview({
           onClick={() => setMobileLegendOpen(false)}
         />
       ) : null}
-      {destinationEntrancesEnabled ? (
+      {desktopLayerOpen || (destinationEntrancesEnabled && mobileLegendOpen) ? (
         <div
           className={`poi-legend-panel fixed z-10 w-60 overflow-hidden rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur ${
           mobileLegendOpen ? "is-mobile-open" : ""
+        } ${
+          desktopLayerOpen ? "is-desktop-open" : ""
         }`}
         style={{
           left: "var(--left-panel-left)",
@@ -758,70 +769,74 @@ export function PoiPreview({
             aria-label="Adjust grid transparency"
           />
         </div>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
-          <div className="flex items-center gap-1">
-            {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
-            <button
-              type="button"
-              onClick={() => setLegendOpen((open) => !open)}
-              className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-100"
-              aria-label={
-                legendOpen
-                  ? "Collapse Destination Entrances legend"
-                  : "Expand Destination Entrances legend"
-              }
-            >
-              {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </button>
-          </div>
-        </div>
-        {error ? (
-          <div className={MAP_OVERLAY_META_TEXT_CLASS.replace("text-muted-foreground", "text-red-600")}>{error}</div>
-        ) : (
-          <div className="grid gap-1">
-            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-100">
-              <input
-                type="checkbox"
-                checked={allCategoriesSelected}
-                onChange={handleToggleAllCategories}
-                className="h-3.5 w-3.5"
-              />
-              <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>Select all</span>
-            </label>
-
-            {legendOpen ? (
-              <div className="max-h-[12.5rem] overflow-y-auto pb-2 pr-1">
-                <div className="grid gap-1">
-                  {POI_CATEGORIES.map((category) => {
-                    const enabled = enabledCategories.has(category.value)
-                    return (
-                      <label
-                        key={category.value}
-                        className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-gray-100"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={enabled}
-                          onChange={() => toggleCategory(category.value)}
-                          className="h-3.5 w-3.5"
-                        />
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-black bg-white">
-                          <span className="text-[11px] leading-none" aria-hidden>
-                            {category.icon}
-                          </span>
-                        </span>
-                        <span className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
-                          {category.label}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
+        {destinationEntrancesEnabled ? (
+          <>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
+              <div className="flex items-center gap-1">
+                {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
+                <button
+                  type="button"
+                  onClick={() => setLegendOpen((open) => !open)}
+                  className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-100"
+                  aria-label={
+                    legendOpen
+                      ? "Collapse Destination Entrances legend"
+                      : "Expand Destination Entrances legend"
+                  }
+                >
+                  {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
               </div>
-            ) : null}
-          </div>
-        )}
+            </div>
+            {error ? (
+              <div className={MAP_OVERLAY_META_TEXT_CLASS.replace("text-muted-foreground", "text-red-600")}>{error}</div>
+            ) : (
+              <div className="grid gap-1">
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={allCategoriesSelected}
+                    onChange={handleToggleAllCategories}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>Select all</span>
+                </label>
+
+                {legendOpen ? (
+                  <div className="max-h-[12.5rem] overflow-y-auto pb-2 pr-1">
+                    <div className="grid gap-1">
+                      {POI_CATEGORIES.map((category) => {
+                        const enabled = enabledCategories.has(category.value)
+                        return (
+                          <label
+                            key={category.value}
+                            className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-gray-100"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={enabled}
+                              onChange={() => toggleCategory(category.value)}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-black bg-white">
+                              <span className="text-[11px] leading-none" aria-hidden>
+                                {category.icon}
+                              </span>
+                            </span>
+                            <span className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
+                              {category.label}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </>
+        ) : null}
         </div>
       ) : null}
     </>

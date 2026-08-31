@@ -428,6 +428,9 @@ export function ComplianceStats({
   return (
     <Card className={`compliance-stats-card ${className} py-2`}>
       <CardContent className="px-4 pt-2 pb-3 space-y-2">
+        {indicatorControl ? (
+          <div className="desktop-chart-indicator-control">{indicatorControl}</div>
+        ) : null}
         <div className="compliance-stats-header flex items-start gap-2">
           <Select value={effectivePlotType} onValueChange={(value) => setPlotType(value as typeof plotType)}>
             <SelectTrigger

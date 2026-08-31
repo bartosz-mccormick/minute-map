@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Slider } from "@/components/ui/slider"
 import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
@@ -298,7 +297,7 @@ export default function App() {
     })
   }
 
-  const citySelectorControl = (
+  const renderCitySelectorControl = () => (
     <Select value={selectedCity.value} onValueChange={handleCityChange}>
       <SelectTrigger className={`city-select-trigger h-10 w-[260px] bg-white shadow-lg ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>
         <SelectValue placeholder="Select city" />
@@ -325,7 +324,7 @@ export default function App() {
           src="/data/logo/minutemap_logo_text.svg"
           alt="MinuteMap"
         />
-        <nav className="mobile-app-nav" aria-label="Mobile navigation">
+        <nav className="mobile-app-nav" aria-label="Primary navigation">
           <button type="button" className="mobile-app-nav-link">
             About
           </button>
@@ -333,12 +332,12 @@ export default function App() {
             <Github size={18} />
           </button>
         </nav>
+        {isBaseMapOnly ? null : (
+          <div className="desktop-header-city-control">
+            {renderCitySelectorControl()}
+          </div>
+        )}
       </header>
-      {isBaseMapOnly ? null : (
-        <div className="city-selector-panel fixed top-4 right-48 z-10">
-          {citySelectorControl}
-        </div>
-      )}
       <HexMap
         key={selectedCity.value}
         hexData={hexData}
@@ -366,7 +365,7 @@ export default function App() {
           <PoiPreview
             gridTransparency={gridTransparency}
             onGridTransparencyChange={setGridTransparency}
-            cityControl={citySelectorControl}
+            cityControl={renderCitySelectorControl()}
             destinationEntrancesEnabled={hasDestinationEntrances}
           />
         )}
@@ -532,28 +531,6 @@ export default function App() {
           ) : null}
         </DialogContent>
       </Dialog>
-      )}
-
-      {isBaseMapOnly ? null : (
-      <div
-        className="grid-transparency-panel fixed z-10 w-72 rounded-md border bg-white/95 p-3 shadow-lg backdrop-blur"
-        style={{ left: "var(--left-panel-left)", top: "var(--left-panel-top)" }}
-      >
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Adjust grid transparency</div>
-          <div className={`shrink-0 tabular-nums ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
-            {gridTransparency}%
-          </div>
-        </div>
-        <Slider
-          value={[gridTransparency]}
-          min={0}
-          max={100}
-          step={1}
-          onValueChange={([value]) => setGridTransparency(value)}
-          aria-label="Adjust grid transparency"
-        />
-      </div>
       )}
 
       {isBaseMapOnly ? null : (

@@ -2,7 +2,6 @@ import * as React from "react"
 import { Pencil, Trash2 } from "lucide-react"
 import { Map, NavigationControl, useControl, useMap } from "react-map-gl/maplibre"
 import { H3HexagonLayer } from "@deck.gl/geo-layers"
-import { PolygonLayer } from "@deck.gl/layers"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import { cellToBoundary } from "h3-js"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -456,7 +455,6 @@ export function HexMap({
   showOverflowBin = false,
   gridOpacity = 0.3,
   selectedCellIds,
-  drawnPolygons,
   onCellClick,
   onPolygonsChange,
   drawRef,
@@ -506,9 +504,6 @@ export function HexMap({
   const layers = React.useMemo(() => {
     if (performanceMode === "base") return []
 
-    const polygonFeatures = (drawnPolygons ?? []).filter(
-      (feature: GeoJSON.Feature) => feature.geometry?.type === "Polygon"
-    ) as GeoJSON.Feature<GeoJSON.Polygon>[]
     const mapLayers = []
 
     if (hexData.length > 0 && !renderNativeHexLayer) {
@@ -544,26 +539,12 @@ export function HexMap({
       }))
     }
 
-    if (polygonFeatures.length > 0) {
-      mapLayers.push(new PolygonLayer({
-        id: "DrawnPolygonLayer",
-        data: polygonFeatures,
-        getPolygon: (feature) => feature.geometry.coordinates,
-        getFillColor: [210, 12, 12, 0],
-        getLineColor: [210, 12, 12, 255],
-        getLineWidth: 2,
-        lineWidthUnits: "pixels",
-        pickable: false,
-      }))
-    }
-
     return mapLayers
   }, [
     hexData,
     indicator,
     selectedCellIds,
     getColorFunction,
-    drawnPolygons,
     gridOpacity,
     hexPerformanceVariant,
     nativeHexLineWidth,

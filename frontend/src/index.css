@@ -126,19 +126,99 @@
   }
 }
 
-.mobile-app-header,
 .mobile-poi-layer-button,
 .mobile-poi-backdrop,
 .mobile-poi-close-button {
   display: none;
 }
 
-.mobile-bottom-panel {
-  display: contents;
+.desktop-poi-layer-button {
+  position: fixed;
+  top: 14.25rem;
+  left: 10px;
+  z-index: 10;
+  display: flex;
+  width: 29px;
+  height: 29px;
+  align-items: center;
+  justify-content: center;
 }
 
-.city-selector-panel {
-  width: 16.25rem;
+.mobile-app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  width: 100%;
+  height: 3.75rem;
+  align-items: center;
+  gap: 0.6rem;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 0 1.25rem;
+  font-size: 1.65rem;
+  font-weight: 500;
+  line-height: 1;
+  color: #111827;
+  backdrop-filter: blur(10px);
+}
+
+.mobile-app-logo {
+  display: block;
+  width: auto;
+  max-width: min(12rem, 55vw);
+  height: 2rem;
+}
+
+.mobile-app-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.mobile-app-nav-link,
+.mobile-app-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #111827;
+}
+
+.mobile-app-nav-link {
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.mobile-app-icon-button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.25rem;
+}
+
+.desktop-header-city-control {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20rem;
+  max-width: min(20rem, calc(100vw - 28rem));
+  transform: translate(-50%, -50%);
+}
+
+.desktop-header-city-control .city-select-trigger {
+  width: 100%;
+  height: 2.75rem;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.mobile-bottom-panel {
+  display: contents;
 }
 
 .config-scroll-control {
@@ -147,6 +227,7 @@
 
 .mobile-layer-grid-slider,
 .mobile-layer-city-control,
+.desktop-chart-indicator-control,
 .mobile-chart-indicator-control {
   display: none;
 }
@@ -155,7 +236,63 @@
   min-height: 0;
 }
 
+.poi-legend-panel.is-desktop-open {
+  top: 14.25rem !important;
+  left: calc(var(--left-panel-left) + 2.4rem) !important;
+  width: 18rem;
+  max-height: min(28rem, calc(100vh - 15.25rem));
+}
+
+.poi-legend-panel.is-desktop-open .mobile-layer-grid-slider {
+  display: block;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  padding-bottom: 0.75rem;
+}
+
 @media (min-width: 701px) {
+  .indicator-panel.has-chart-data {
+    display: none;
+  }
+
+  .stats-panel {
+    right: 1rem;
+    bottom: 2.5rem;
+    left: auto;
+  }
+
+  .desktop-chart-indicator-control {
+    display: block;
+    width: 95%;
+  }
+
+  .desktop-chart-indicator-control [data-slot="dropdown-menu-trigger"] {
+    width: 100%;
+  }
+
+  .configure-button {
+    top: calc(3.75rem + 1rem);
+  }
+
+  .maplibregl-ctrl-top-left {
+    top: calc(3.75rem + 0.75rem) !important;
+    left: 10px !important;
+  }
+
+  .maplibregl-ctrl-top-left > .maplibregl-ctrl {
+    margin: 0 !important;
+  }
+
+  .desktop-poi-layer-button {
+    top: calc(3.75rem + 0.75rem + 87px + 0.5rem + 58px + 0.5rem);
+    left: 10px;
+    margin: 0;
+  }
+
+  .poi-legend-panel.is-desktop-open {
+    top: calc(3.75rem + 0.75rem + 87px + 0.5rem + 58px + 0.5rem) !important;
+  }
+
   .config-dialog {
     overflow-x: hidden;
     overflow-y: auto;
@@ -175,6 +312,14 @@
   display: flex;
   flex-direction: column;
   width: 29px;
+}
+
+@media (min-width: 701px) {
+  .draw-toolbar {
+    top: calc(3.75rem + 0.75rem + 87px + 0.5rem);
+    left: 10px;
+    margin: 0;
+  }
 }
 
 .shadcn-slider {
@@ -252,58 +397,10 @@
 
   .mobile-app-header {
     position: sticky;
-    top: 0;
-    z-index: 30;
-    display: flex;
-    height: 3.75rem;
-    align-items: center;
-    gap: 0.6rem;
-    justify-content: space-between;
-    border-bottom: 1px solid rgba(15, 23, 42, 0.12);
-    background: rgba(255, 255, 255, 0.96);
-    padding: 0 1.25rem;
-    font-size: 1.65rem;
-    font-weight: 500;
-    line-height: 1;
-    color: #111827;
-    backdrop-filter: blur(10px);
   }
 
-  .mobile-app-logo {
-    display: block;
-    width: auto;
-    max-width: min(12rem, 55vw);
-    height: 2rem;
-  }
-
-  .mobile-app-nav {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    margin-left: auto;
-  }
-
-  .mobile-app-nav-link,
-  .mobile-app-icon-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    background: transparent;
-    color: #111827;
-  }
-
-  .mobile-app-nav-link {
-    padding: 0.25rem 0;
-    font-size: 0.9rem;
-    font-weight: 500;
-    line-height: 1;
-  }
-
-  .mobile-app-icon-button {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.25rem;
+  .desktop-header-city-control {
+    display: none;
   }
 
   .app-shell > .maplibregl-map {
@@ -333,10 +430,6 @@
     min-width: 0;
     padding: 0 0.75rem;
     transform: none;
-  }
-
-  .city-selector-panel {
-    display: none;
   }
 
   .mobile-layer-city-control {
@@ -460,6 +553,10 @@
     border: 0;
     background: #fff;
     color: #111827;
+  }
+
+  .desktop-poi-layer-button {
+    display: none;
   }
 
   .mobile-poi-backdrop {
