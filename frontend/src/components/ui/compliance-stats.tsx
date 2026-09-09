@@ -68,8 +68,8 @@ const PLOT_TYPES = [
   { value: "bar-chart", label: "bar chart" },
   { value: "radar-chart", label: "radar chart" },
 ] as const
-const RADAR_TOP_AXIS_LABELS = new Set(["Supermarket", "Pharmacy", "Playground"])
-const RADAR_BOTTOM_AXIS_LABELS = new Set(["Cafe", "Bar", "Bakery"])
+const RADAR_TOP_AXIS_LABELS = new Set(["Supermarket", "Pharmacy", "General Practitioner", "Playground"])
+const RADAR_BOTTOM_AXIS_LABELS = new Set(["Cafe", "Bar", "Bakery", "Library"])
 
 const defaultFormatValue = (v: number) => v.toFixed(1).replace(/\.0$/, "")
 
@@ -166,6 +166,10 @@ export function ComplianceStats({
   const showSummary = effectivePlotType === "bar-chart"
   const radarValueByAmenity = React.useMemo(() => {
     return new Map(amenityRadarData.rows.map((row) => [row.amenity, row.value]))
+  }, [amenityRadarData])
+  const radarDestinations = React.useMemo(() => {
+    const returnedAmenities = new Set(amenityRadarData.rows.map((row) => row.amenity))
+    return DESTINATIONS.filter((destination) => returnedAmenities.has(destination.value))
   }, [amenityRadarData])
   const selectedRadarValueByAmenity = React.useMemo(() => {
     return new Map(selectedAmenityRadarData.rows.map((row) => [row.amenity, row.value]))
@@ -282,8 +286,8 @@ export function ComplianceStats({
       legend: { show: false },
       radar: {
         center: ["50%", "51%"],
-        radius: "78%",
-        nameGap: 30,
+        radius: "72%",
+        nameGap: 22,
         splitNumber: radarRingBounds.length - 1,
         shape: "circle",
         axisName: {
@@ -317,7 +321,7 @@ export function ComplianceStats({
             color: "rgba(17, 24, 39, 0.18)",
           },
         },
-        indicator: DESTINATIONS.map((destination) => ({
+        indicator: radarDestinations.map((destination) => ({
           name: destination.label,
           max: radarBounds.max,
           min: radarBounds.min,
@@ -330,7 +334,7 @@ export function ComplianceStats({
           type: "radar",
           data: [
             {
-              value: DESTINATIONS.map((destination) => radarValueByAmenity.get(destination.value) ?? 0),
+              value: radarDestinations.map((destination) => radarValueByAmenity.get(destination.value) ?? 0),
               name: "Full area",
               areaStyle: {
                 color: "rgba(59, 130, 246, 0.18)",
@@ -345,7 +349,7 @@ export function ComplianceStats({
             ...(hasRadarSelection
               ? [
                   {
-                    value: DESTINATIONS.map((destination) => selectedRadarValueByAmenity.get(destination.value) ?? 0),
+                    value: radarDestinations.map((destination) => selectedRadarValueByAmenity.get(destination.value) ?? 0),
                     name: "Selection",
                     areaStyle: {
                       color: "rgba(220, 38, 38, 0.16)",
@@ -371,6 +375,7 @@ export function ComplianceStats({
     highlightedAmenity,
     radarBounds.max,
     radarBounds.min,
+    radarDestinations,
     radarRingBounds.length,
     radarValueByAmenity,
     selectedRadarBinIndex,
@@ -387,10 +392,13 @@ export function ComplianceStats({
           params.dataIndex === undefined ||
           params.seriesIndex !== 0
         ) return
+        if (canShowRadarChart) {
+          setSelectedRadarBinIndex(params.dataIndex)
+        }
         onSelectBin(params.dataIndex)
       },
     }),
-    [onSelectBin]
+    [canShowRadarChart, onSelectBin]
   )
 
   const handleRadarChartClick = React.useCallback(
@@ -422,7 +430,7 @@ export function ComplianceStats({
   if (data.length === 0) return null
 
   const chartHeight = effectivePlotType === "radar-chart"
-    ? isMobile ? 220 : 300
+    ? isMobile ? 250 : 330
     : isMobile ? 190 : 260
 
   return (
@@ -451,7 +459,7 @@ export function ComplianceStats({
             <div className="mobile-chart-indicator-control">{indicatorControl}</div>
           ) : null}
         </div>
-        <div className={`h-[44px] border-b pb-2 ${showSummary ? "" : "border-transparent"}`}>
+        <div className={showSummary ? "h-[44px] border-b pb-2" : "border-b border-transparent"}>
           {showSummary ? (
             <div className="space-y-1">
               <div className="flex items-center justify-between">

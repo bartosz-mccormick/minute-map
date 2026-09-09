@@ -117,6 +117,22 @@ export default function App() {
     clearSelectedCellDetails,
     loadSelectedCellDetails,
   })
+
+  const resetAnalysisSelection = React.useCallback(() => {
+    const draw = drawRef.current
+    if (draw) {
+      const ids = (draw.getAll().features as Array<{ id?: unknown }>)
+        .map((feature) => feature.id)
+        .filter((id): id is string => typeof id === "string")
+      if (ids.length > 0) {
+        draw.delete(ids)
+      }
+    }
+
+    setDrawnPolygons([])
+    resetSelectedCells()
+  }, [resetSelectedCells])
+
   const { loading, handleAnalyze } = useRunAnalysis({
     thresholds,
     weights,
@@ -124,7 +140,7 @@ export default function App() {
     ensureDuckDbClient,
     loadMapData,
     loadAmenityRadarData,
-    resetSelectedCells,
+    resetSelection: resetAnalysisSelection,
     setAvailableIndicators,
     clearMapData,
     setMapDataError,
