@@ -32,6 +32,10 @@ import {
   syncSelectedHexMapLayer,
   syncHexMapLayer,
 } from "@/components/maplibre-hex-layer"
+import {
+  lockMobileDrawScroll,
+  shouldLockMobileDrawScroll,
+} from "@/lib/mobile-draw-scroll-lock"
 import type { HexFeatureCollection } from "@/app-types"
 
 const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
@@ -185,6 +189,52 @@ function getMapLike(map: unknown): Parameters<typeof syncHexMapLayer>[0] {
       ? (map as { getMap: () => unknown }).getMap()
       : map
   return rawMap as Parameters<typeof syncHexMapLayer>[0]
+}
+
+function useMobileDrawScrollLock(
+  isDrawing: boolean,
+  map: unknown,
+) {
+  const cleanupScrollLockRef = React.useRef<(() => void) | null>(null)
+
+  const unlockScroll = React.useCallback(() => {
+    cleanupScrollLockRef.current?.()
+    cleanupScrollLockRef.current = null
+  }, [])
+
+  const lockScroll = React.useCallback(() => {
+    if (!shouldLockMobileDrawScroll()) return
+    cleanupScrollLockRef.current ??= lockMobileDrawScroll()
+  }, [])
+
+  React.useEffect(() => {
+    if (!isDrawing || !map || !shouldLockMobileDrawScroll()) {
+      if (!isDrawing) unlockScroll()
+      return
+    }
+
+    const mapCanvas = (map as { getCanvas?: () => HTMLElement }).getCanvas?.()
+    if (!mapCanvas) return
+
+    mapCanvas.addEventListener("touchstart", lockScroll, { passive: true })
+    window.addEventListener("touchend", unlockScroll)
+    window.addEventListener("touchcancel", unlockScroll)
+    ;(map as MapWithEvents).on("draw.create", unlockScroll)
+
+    return () => {
+      mapCanvas.removeEventListener("touchstart", lockScroll)
+      window.removeEventListener("touchend", unlockScroll)
+      window.removeEventListener("touchcancel", unlockScroll)
+      ;(map as MapWithEvents).off("draw.create", unlockScroll)
+      unlockScroll()
+    }
+  }, [isDrawing, map, lockScroll, unlockScroll])
+
+  React.useEffect(() => {
+    return unlockScroll
+  }, [unlockScroll])
+
+  return { lockScroll, unlockScroll }
 }
 
 function MapLibreHexLayer({
@@ -368,22 +418,31 @@ function DrawToolbar({
   const [isDrawing, setIsDrawing] = React.useState(false)
   const { current: map } = useMap()
 
+  const { lockScroll, unlockScroll } = useMobileDrawScrollLock(isDrawing, map)
+
   React.useEffect(() => {
     if (!map) return
     const handleModeChange = (event: unknown) => {
-      setIsDrawing((event as { mode: string }).mode === "draw_polygon")
+      const drawing = (event as { mode: string }).mode === "draw_polygon"
+      setIsDrawing(drawing)
+      if (drawing) {
+        lockScroll()
+      } else {
+        unlockScroll()
+      }
     }
     map.on("draw.modechange", handleModeChange as (...args: unknown[]) => void)
     return () => {
       map.off("draw.modechange", handleModeChange as (...args: unknown[]) => void)
     }
-  }, [map])
+  }, [lockScroll, map, unlockScroll])
 
   const handleToggleDraw = React.useCallback(() => {
     const draw = drawRef?.current
     if (!draw) return
 
     if (draw.getMode() === "draw_polygon") {
+      unlockScroll()
       draw.changeMode("simple_select")
     } else {
       const all = draw.getAll()
@@ -395,9 +454,10 @@ function DrawToolbar({
       }
       onClearPolygons?.()
 
+      lockScroll()
       draw.changeMode("draw_polygon")
     }
-  }, [drawRef, onClearPolygons])
+  }, [drawRef, lockScroll, onClearPolygons, unlockScroll])
 
   const handleDelete = React.useCallback(() => {
     const draw = drawRef?.current
