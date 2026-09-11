@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDown, ArrowUp, Github, Info, Settings, Loader2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Github, Info, Settings, Loader2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -72,6 +72,7 @@ export default function App() {
   const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [configOpen, setConfigOpen] = React.useState(false)
   const [configScrollControl, setConfigScrollControl] = React.useState<"down" | "up" | null>(null)
+  const [mobileBottomPanelOpen, setMobileBottomPanelOpen] = React.useState(true)
   const [gridTransparency, setGridTransparency] = React.useState(65)
   const configDialogRef = React.useRef<HTMLDivElement | null>(null)
   const hasDestinationEntrances = hasCityFeature(selectedCity, "destinationEntrances")
@@ -326,7 +327,12 @@ export default function App() {
   )
 
   return (
-    <div className="app-shell h-screen w-full relative bg-gray-50" style={leftPanelLayoutStyle}>
+    <div
+      className={`app-shell h-screen w-full relative bg-gray-50 ${
+        mobileBottomPanelOpen ? "mobile-bottom-panel-open" : "mobile-bottom-panel-collapsed"
+      }`}
+      style={leftPanelLayoutStyle}
+    >
       <header className="mobile-app-header">
         <img
           className="mobile-app-logo mobile-app-logo-full"
@@ -388,6 +394,20 @@ export default function App() {
       </HexMap>
 
       <div className="mobile-bottom-panel">
+      <button
+        type="button"
+        className="mobile-bottom-panel-handle"
+        onClick={() => setMobileBottomPanelOpen((open) => !open)}
+        aria-label={mobileBottomPanelOpen ? "Collapse bottom panel" : "Expand bottom panel"}
+        aria-expanded={mobileBottomPanelOpen}
+      >
+        <span className="mobile-bottom-panel-handle-bar" aria-hidden />
+        {mobileBottomPanelOpen ? (
+          <ChevronDown size={18} aria-hidden />
+        ) : (
+          <ChevronUp size={18} aria-hidden />
+        )}
+      </button>
       {isBaseMapOnly ? null : (
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
         <DialogTrigger asChild>
