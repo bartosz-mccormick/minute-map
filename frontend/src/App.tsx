@@ -106,6 +106,7 @@ export default function App() {
     handleMapCellClick,
     handleIndicatorChange,
     handleSelectBin,
+    handleSelectBins,
     handleSelectRadarBin,
   } = useMapIndicatorState({
     useHexPerformanceFixture,
@@ -604,6 +605,7 @@ export default function App() {
               selectedAmenityRadarData={selectedAmenityRadarData}
               selectedIndicator={selectedIndicator}
               onSelectBin={handleSelectBin}
+              onSelectBins={handleSelectBins}
               onSelectRadarBin={handleSelectRadarBin}
               selectedCells={selectedCellsData}
               formatValue={fmt}

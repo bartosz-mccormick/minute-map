@@ -33,6 +33,7 @@ interface ComplianceStatsProps {
   selectedAmenityRadarData?: AmenityRadarDataResult
   selectedIndicator?: string
   onSelectBin: (binIndex: number | null) => void
+  onSelectBins?: (binIndexes: number[]) => void
   onSelectRadarBin?: (binIndex: number | null, bounds: readonly number[]) => void
   /** When 1+ cells are selected (click or polygon), show their distribution in the plot */
   selectedCells?: HexItem[]
@@ -100,6 +101,7 @@ export function ComplianceStats({
   selectedAmenityRadarData = EMPTY_AMENITY_RADAR_DATA,
   selectedIndicator,
   onSelectBin,
+  onSelectBins,
   onSelectRadarBin,
   selectedCells,
   formatValue = defaultFormatValue,
@@ -110,6 +112,7 @@ export function ComplianceStats({
   const [selectedRadarBinIndex, setSelectedRadarBinIndex] = React.useState<number | null>(null)
   const [isMobile, setIsMobile] = React.useState(false)
   const chartRef = React.useRef<ReactECharts>(null)
+  const ignoreNextEmptyBrushSelectionRef = React.useRef(false)
   const canShowRadarChart = isComplianceIndicator(selectedIndicator)
   const availablePlotTypes = canShowRadarChart
     ? PLOT_TYPES
@@ -208,6 +211,21 @@ export function ComplianceStats({
 
   const barChartOption = React.useMemo(() => {
     return {
+      toolbox: {
+        top: isMobile ? -18 : -16,
+        right: 4,
+        itemSize: 14,
+        itemGap: 8,
+        feature: {
+          brush: {
+            type: ["lineX", "keep", "clear"],
+          },
+        },
+      },
+      brush: {
+        xAxisIndex: 0,
+        brushMode: "multiple",
+      },
       grid: { left: 50, right: 20, top: 20, bottom: 60 },
       xAxis: {
         type: "category",
@@ -278,7 +296,7 @@ export function ComplianceStats({
         },
       },
     }
-  }, [colors, stats, hasSelection, bins])
+  }, [colors, stats, hasSelection, bins, isMobile])
 
   const radarChartOption = React.useMemo(() => {
     return {
@@ -397,9 +415,37 @@ export function ComplianceStats({
         }
         onSelectBin(params.dataIndex)
       },
+      brushSelected: (params: {
+        batch?: Array<{
+          selected?: Array<{
+            dataIndex?: number[]
+          }>
+        }>
+      }) => {
+        const selectedIndexes = params.batch?.[0]?.selected?.[0]?.dataIndex ?? []
+        if (ignoreNextEmptyBrushSelectionRef.current) {
+          ignoreNextEmptyBrushSelectionRef.current = false
+          if (selectedIndexes.length === 0) return
+        }
+        onSelectBins?.(selectedIndexes)
+      },
     }),
-    [canShowRadarChart, onSelectBin]
+    [canShowRadarChart, onSelectBin, onSelectBins]
   )
+
+  const handleChartReady = React.useCallback<NonNullable<React.ComponentProps<typeof ReactECharts>["onChartReady"]>>((chart) => {
+    if (effectivePlotType !== "bar-chart") return
+
+    ignoreNextEmptyBrushSelectionRef.current = true
+    chart.dispatchAction({
+      type: "takeGlobalCursor",
+      key: "brush",
+      brushOption: {
+        brushType: "lineX",
+        brushMode: "multiple",
+      },
+    })
+  }, [effectivePlotType])
 
   const handleRadarChartClick = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -504,6 +550,7 @@ export function ComplianceStats({
               style={{ height: chartHeight, width: "100%" }}
               opts={{ renderer: "canvas" }}
               onEvents={effectivePlotType === "bar-chart" ? onChartEvents : undefined}
+              onChartReady={handleChartReady}
             />
           </div>
         </div>

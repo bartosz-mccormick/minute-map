@@ -195,6 +195,48 @@ export function useMapIndicatorState({
     [activeBounds, clearSelectedCellDetails, drawRef, hexData, resetSelectedCells, selectedCellIds, setDrawnPolygons]
   )
 
+  const handleSelectBins = React.useCallback(
+    (binIndexes: number[]) => {
+      const uniqueBinIndexes = [...new Set(binIndexes)]
+      if (uniqueBinIndexes.length === 0) {
+        resetSelectedCells()
+        return
+      }
+
+      const selectedBins = new Set(uniqueBinIndexes)
+      const startedAt = performance.now()
+      const cellsInBins = hexData.filter((cell) => (
+        typeof cell.bin === "number" && selectedBins.has(cell.bin)
+      ))
+      const cellsInBinIds = new Set(cellsInBins.map((cell) => cell.h3_cell))
+
+      logSelectionTiming("handleSelectBins.filter", startedAt, {
+        cells_total: hexData.length,
+        cells_selected: cellsInBinIds.size,
+        bins: uniqueBinIndexes,
+      })
+
+      if (areSetsEqual(selectedCellIds, cellsInBinIds)) {
+        resetSelectedCells()
+        return
+      }
+
+      const draw = drawRef.current
+      if (draw) {
+        const all = draw.getAll()
+        const ids = (all.features as Array<{ id?: unknown }>)
+          .map((feature) => feature.id)
+          .filter((id): id is string => typeof id === "string")
+        if (ids.length > 0) draw.delete(ids)
+      }
+
+      setDrawnPolygons([])
+      setSelectedCellIds(cellsInBinIds)
+      clearSelectedCellDetails()
+    },
+    [clearSelectedCellDetails, drawRef, hexData, resetSelectedCells, selectedCellIds, setDrawnPolygons]
+  )
+
   const handleSelectRadarBin = React.useCallback(
     async (binIndex: number | null, bounds: readonly number[]) => {
       if (binIndex === null) {
@@ -286,6 +328,7 @@ export function useMapIndicatorState({
     handleMapCellClick,
     handleIndicatorChange,
     handleSelectBin,
+    handleSelectBins,
     handleSelectRadarBin,
   }
 }
