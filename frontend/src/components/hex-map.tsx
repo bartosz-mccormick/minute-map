@@ -39,6 +39,7 @@ import {
 import type { HexFeatureCollection } from "@/app-types"
 
 const NO_DATA_COLOR: [number, number, number, number] = [200, 200, 200, 60]
+const SELECTED_OPACITY_BOOST = 0.1
 
 const DRAW_STYLES = [
   {
@@ -132,6 +133,26 @@ function toNullableFiniteNumber(value: unknown) {
   if (value === null || value === undefined) return null
   const numberValue = Number(value)
   return Number.isFinite(numberValue) ? numberValue : null
+}
+
+function getSelectionOpacity(gridOpacity: number, hasSelection: boolean) {
+  const clampedOpacity = Math.max(0, Math.min(1, gridOpacity))
+  if (!hasSelection) {
+    return {
+      unselectedOpacity: clampedOpacity,
+      selectedOpacity: clampedOpacity,
+      selectedOverlayOpacity: 0,
+    }
+  }
+
+  const unselectedOpacity = Math.min(clampedOpacity, 1 - SELECTED_OPACITY_BOOST)
+  const selectedOpacity = Math.min(1, unselectedOpacity + SELECTED_OPACITY_BOOST)
+  const selectedOverlayOpacity =
+    unselectedOpacity >= 1
+      ? 0
+      : (selectedOpacity - unselectedOpacity) / (1 - unselectedOpacity)
+
+  return { unselectedOpacity, selectedOpacity, selectedOverlayOpacity }
 }
 
 function createHexFeatureCollection({
@@ -302,20 +323,24 @@ function MapLibreHexLayer({
 
 function MapLibreSelectedHexLayer({
   data,
+  opacity,
 }: {
   data: HexFeatureCollection
+  opacity: number
 }) {
   const { current: map } = useMap()
   const mapLikeRef = React.useRef<Parameters<typeof syncSelectedHexMapLayer>[0] | null>(null)
   const dataRef = React.useRef(data)
+  const opacityRef = React.useRef(opacity)
 
   React.useEffect(() => {
     dataRef.current = data
-  }, [data])
+    opacityRef.current = opacity
+  }, [data, opacity])
 
   const syncCurrentLayer = React.useCallback(() => {
     if (!mapLikeRef.current) return
-    syncSelectedHexMapLayer(mapLikeRef.current, dataRef.current)
+    syncSelectedHexMapLayer(mapLikeRef.current, dataRef.current, opacityRef.current)
   }, [])
 
   React.useEffect(() => {
@@ -345,7 +370,7 @@ function MapLibreSelectedHexLayer({
 
   React.useEffect(() => {
     syncCurrentLayer()
-  }, [data, syncCurrentLayer])
+  }, [data, opacity, syncCurrentLayer])
 
   return null
 }
@@ -555,11 +580,16 @@ export function HexMap({
       createHexFeatureCollection({
         hexData: hexData.filter((row) => selectedCellIds.has(row.h3_cell)),
         getColorFunction,
-        fillColorOverride: "rgba(210, 12, 12, 0.18)",
       }),
     [getColorFunction, hexData, selectedCellIds]
   )
   const nativeHexLineWidth = getHexLineWidthMinPixels({ variant: hexPerformanceVariant })
+  const hasSelectedCells = selectedCellIds.size > 0
+  const {
+    unselectedOpacity,
+    selectedOpacity,
+    selectedOverlayOpacity,
+  } = getSelectionOpacity(gridOpacity, hasSelectedCells)
 
   const layers = React.useMemo(() => {
     if (performanceMode === "base") return []
@@ -577,8 +607,11 @@ export function HexMap({
         getFillColor: (row: HexMapCell, info: unknown) => {
           if (row.value === null || row.value === undefined) return NO_DATA_COLOR
           const baseColor = getColorFunction(row, info as never)
-          if (selectedCellIds.size > 0 && !selectedCellIds.has(row.h3_cell)) {
-            return [...baseColor.slice(0, 3), 50] as [number, number, number, number]
+          if (hasSelectedCells && !selectedCellIds.has(row.h3_cell)) {
+            const alpha = selectedOpacity > 0
+              ? Math.round(255 * (unselectedOpacity / selectedOpacity))
+              : 0
+            return [...baseColor.slice(0, 3), alpha] as [number, number, number, number]
           }
           return baseColor
         },
@@ -590,7 +623,7 @@ export function HexMap({
           hexCellCount: hexData.length,
           variant: hexPerformanceVariant,
         }),
-        opacity: gridOpacity,
+        opacity: hasSelectedCells ? selectedOpacity : gridOpacity,
         updateTriggers: {
           getElevation: indicator,
           getFillColor: [indicator, selectedCellIds],
@@ -607,9 +640,12 @@ export function HexMap({
     getColorFunction,
     gridOpacity,
     hexPerformanceVariant,
+    hasSelectedCells,
     nativeHexLineWidth,
     performanceMode,
     renderNativeHexLayer,
+    selectedOpacity,
+    unselectedOpacity,
   ])
   const renderMapOverlay = shouldRenderMapOverlay({
     performanceMode,
@@ -687,10 +723,13 @@ export function HexMap({
         <>
           <MapLibreHexLayer
             data={hexFeatureCollection}
-            opacity={gridOpacity}
+            opacity={unselectedOpacity}
             lineWidth={nativeHexLineWidth}
           />
-          <MapLibreSelectedHexLayer data={selectedHexFeatureCollection} />
+          <MapLibreSelectedHexLayer
+            data={selectedHexFeatureCollection}
+            opacity={selectedOverlayOpacity}
+          />
         </>
       ) : null}
       {renderMapOverlay ? (

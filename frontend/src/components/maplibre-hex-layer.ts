@@ -107,7 +107,8 @@ export function removeHexMapLayer(mapLike: MapLibreHexLayerMapLike) {
 
 export function syncSelectedHexMapLayer(
   mapLike: MapLibreHexLayerMapLike,
-  data: HexFeatureCollection
+  data: HexFeatureCollection,
+  opacity: number
 ) {
   if (!mapLike.isStyleLoaded()) return false
 
@@ -126,8 +127,8 @@ export function syncSelectedHexMapLayer(
       type: "fill",
       source: SELECTED_HEX_SOURCE_ID,
       paint: {
-        "fill-color": "rgba(210, 12, 12, 0.18)",
-        "fill-opacity": 1,
+        "fill-color": ["get", "fillColor"],
+        "fill-opacity": opacity,
       },
     })
   }
@@ -138,11 +139,18 @@ export function syncSelectedHexMapLayer(
       type: "line",
       source: SELECTED_HEX_SOURCE_ID,
       paint: {
-        "line-color": "#D20C0C",
+        "line-color": ["get", "fillColor"],
+        "line-opacity": 1,
         "line-width": 2,
       },
     })
   }
+
+  mapLike.setPaintProperty(SELECTED_HEX_FILL_LAYER_ID, "fill-color", ["get", "fillColor"])
+  mapLike.setPaintProperty(SELECTED_HEX_FILL_LAYER_ID, "fill-opacity", opacity)
+  mapLike.setPaintProperty(SELECTED_HEX_LINE_LAYER_ID, "line-color", ["get", "fillColor"])
+  mapLike.setPaintProperty(SELECTED_HEX_LINE_LAYER_ID, "line-opacity", 1)
+  mapLike.setPaintProperty(SELECTED_HEX_LINE_LAYER_ID, "line-width", 2)
 
   return true
 }
