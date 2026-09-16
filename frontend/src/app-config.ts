@@ -38,9 +38,6 @@ export const CITY_OPTIONS: CityConfig[] = [
     label: "Munich, DE",
     dataBucket: R2_BUCKET,
     defaultPresetId: "munich_general",
-    features: {
-      destinationEntrances: true,
-    },
     viewState: INITIAL_VIEW_STATE,
   },
   {
@@ -88,12 +85,6 @@ export const CITY_OPTIONS: CityConfig[] = [
 ]
 
 export const INITIAL_CITY = CITY_OPTIONS[0]
-
-export type CityFeature = "destinationEntrances"
-
-export function hasCityFeature(city: CityConfig, feature: CityFeature) {
-  return city.features?.[feature] === true
-}
 
 export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 export const MAX_TT = 30

@@ -17,9 +17,6 @@ export interface CityConfig {
   label: string
   dataBucket: string | null
   defaultPresetId?: string
-  features?: {
-    destinationEntrances?: boolean
-  }
   viewState: {
     longitude: number
     latitude: number

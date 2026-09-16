@@ -15,7 +15,7 @@ import {
   MAP_OVERLAY_META_TEXT_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
-import { POI_DESTINATIONS } from "@/app-config"
+import { getDataFileUrl, POI_DESTINATIONS } from "@/app-config"
 import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
 import { usePoiViewportSync, type PoiMapLike } from "@/components/poi/usePoiViewportSync"
 import { Slider } from "@/components/ui/slider"
@@ -46,7 +46,7 @@ type PoiMarkerRow = {
 type PoiPreviewProps = {
   gridTransparency: number
   onGridTransparencyChange: (value: number) => void
-  destinationEntrancesEnabled: boolean
+  dataBucket?: string | null
 }
 
 type RawPoiRow = {
@@ -61,27 +61,23 @@ type RawPoiRow = {
 
 type PoiSource = {
   file: string
-  url: string
   query: string
 }
 
-const POI_SOURCES: PoiSource[] = [
-  {
-    file: "entrances.with_names.geoparquet.parquet",
-    url: "/data/entrances.with_names.geoparquet.parquet",
-    query: `
-      SELECT
-        CAST(row_number() OVER () AS VARCHAR) AS poi_id,
-        __NAME_SELECT__ AS name,
-        class_b AS category,
-        '' AS subtype,
-        geom
-      FROM poi_src
-      WHERE class_b IN (__CATEGORIES__)
-        AND geom IS NOT NULL
-    `,
-  },
-]
+const POI_SOURCE: PoiSource = {
+  file: "entrances.parquet",
+  query: `
+    SELECT
+      CAST(row_number() OVER () AS VARCHAR) AS poi_id,
+      __NAME_SELECT__ AS name,
+      class_b AS category,
+      '' AS subtype,
+      geom
+    FROM poi_src
+    WHERE class_b IN (__CATEGORIES__)
+      AND geom IS NOT NULL
+  `,
+}
 
 const DETAILED_POI_ZOOM = 14
 const CLOSE_POI_ZOOM = 17
@@ -132,7 +128,7 @@ const iconDefinitionByCategory = new Map(
   ])
 )
 
-let poiRowsPromise: Promise<PoiRow[]> | null = null
+const poiRowsPromisesByUrl = new Map<string, Promise<PoiRow[]>>()
 
 function DeckGLOverlay(props: ConstructorParameters<typeof DeckOverlay>[0]) {
   const overlay = useControl(() => new DeckOverlay({ interleaved: true, ...props }))
@@ -368,63 +364,54 @@ async function hasPoiSourceColumn(conn: duckdb.AsyncDuckDBConnection, columnName
     })
 }
 
-async function loadPois(): Promise<PoiRow[]> {
-  if (poiRowsPromise) return poiRowsPromise
+async function loadPois(dataBucket?: string | null): Promise<PoiRow[]> {
+  const sourceUrl = getDataFileUrl(POI_SOURCE.file, dataBucket)
+  const absoluteSourceUrl = getDuckDbFileUrl(sourceUrl)
+  const cachedRowsPromise = poiRowsPromisesByUrl.get(absoluteSourceUrl)
+  if (cachedRowsPromise) return cachedRowsPromise
 
-  poiRowsPromise = (async () => {
+  const poiRowsPromise = (async () => {
     incrementPoiPerfCounter("loadPois")
 
     const { createIsolatedDuckDb } = await import("@/db/duckdb/createDuckDb")
     const { db, conn } = await createIsolatedDuckDb()
     const categoryValues = POI_CATEGORIES.map((category) => category.value)
-    const poiRows: PoiRow[] = []
-    let loadedAnySource = false
-    let lastError: unknown = null
 
     await conn.query("SET enable_geoparquet_conversion = false")
 
-    for (const source of POI_SOURCES) {
-      try {
-        await db.registerFileURL(
-          source.file,
-          getDuckDbFileUrl(source.url),
-          duckdb.DuckDBDataProtocol.HTTP,
-          false
-        )
+    await db.registerFileURL(
+      POI_SOURCE.file,
+      absoluteSourceUrl,
+      duckdb.DuckDBDataProtocol.HTTP,
+      false
+    )
 
-        await conn.query(`
-          CREATE OR REPLACE VIEW poi_src AS
-          SELECT *
-          FROM read_parquet('${source.file}')
-        `)
+    await conn.query(`
+      CREATE OR REPLACE VIEW poi_src AS
+      SELECT *
+      FROM read_parquet('${POI_SOURCE.file}')
+    `)
 
-        const nameSelect = await hasPoiSourceColumn(conn, "name")
-          ? "COALESCE(CAST(name AS VARCHAR), '')"
-          : "''"
-        const result = await conn.query(
-          source.query
-            .replace("__CATEGORIES__", sqlList([...new Set(categoryValues)]))
-            .replace("__NAME_SELECT__", nameSelect)
-        )
-        loadedAnySource = true
-        poiRows.push(...toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow)))
-      } catch (error) {
-        lastError = error
-        console.warn(`POI parquet source failed: ${source.file}`, error)
-      }
-    }
+    const nameSelect = await hasPoiSourceColumn(conn, "name")
+      ? "COALESCE(NULLIF(TRIM(CAST(name AS VARCHAR)), ''), '')"
+      : "''"
+    const result = await conn.query(
+      POI_SOURCE.query
+        .replace("__CATEGORIES__", sqlList([...new Set(categoryValues)]))
+        .replace("__NAME_SELECT__", nameSelect)
+    )
 
-    if (loadedAnySource) return poiRows
-    throw lastError
+    return toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow))
   })()
 
+  poiRowsPromisesByUrl.set(absoluteSourceUrl, poiRowsPromise)
   return poiRowsPromise
 }
 
 export function PoiPreview({
   gridTransparency,
   onGridTransparencyChange,
-  destinationEntrancesEnabled,
+  dataBucket,
 }: PoiPreviewProps) {
   const { current: map } = useMap()
   const [pois, setPois] = React.useState<PoiRow[]>([])
@@ -454,15 +441,21 @@ export function PoiPreview({
   })
 
   React.useEffect(() => {
+    setPois([])
+    setError(null)
+    setLoading(false)
+  }, [dataBucket])
+
+  React.useEffect(() => {
     let cancelled = false
 
-    if (!destinationEntrancesEnabled || enabledCategories.size === 0 || pois.length > 0) {
+    if (enabledCategories.size === 0 || pois.length > 0) {
       setLoading(false)
       return
     }
 
     setLoading(true)
-    loadPois()
+    loadPois(dataBucket)
       .then((rows) => {
         if (!cancelled) {
           setPois(rows)
@@ -483,7 +476,7 @@ export function PoiPreview({
     return () => {
       cancelled = true
     }
-  }, [destinationEntrancesEnabled, enabledCategories.size, pois.length])
+  }, [dataBucket, enabledCategories.size, pois.length])
 
   const visiblePois = React.useMemo(
     () => pois.filter((poi) => enabledCategories.has(poi.category)),
@@ -533,8 +526,6 @@ export function PoiPreview({
 
   const poiLayers = React.useMemo(() => {
     incrementPoiPerfCounter("poiLayers")
-
-    if (!destinationEntrancesEnabled) return []
 
     if (!showDetailedMarkers) {
       return [
@@ -608,7 +599,6 @@ export function PoiPreview({
     markerRows,
     showDetailedMarkers,
     typedMarkerRows,
-    destinationEntrancesEnabled,
   ])
 
   const toggleCategory = React.useCallback((category: PoiCategory) => {
@@ -762,74 +752,70 @@ export function PoiPreview({
             aria-label="Adjust grid transparency"
           />
         </div>
-        {destinationEntrancesEnabled ? (
-          <>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
-              <div className="flex items-center gap-1">
-                {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
-                <button
-                  type="button"
-                  onClick={() => setLegendOpen((open) => !open)}
-                  className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-100"
-                  aria-label={
-                    legendOpen
-                      ? "Collapse Destination Entrances legend"
-                      : "Expand Destination Entrances legend"
-                  }
-                >
-                  {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </button>
-              </div>
-            </div>
-            {error ? (
-              <div className={MAP_OVERLAY_META_TEXT_CLASS.replace("text-muted-foreground", "text-red-600")}>{error}</div>
-            ) : (
-              <div className="grid gap-1">
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-100">
-                  <input
-                    type="checkbox"
-                    checked={allCategoriesSelected}
-                    onChange={handleToggleAllCategories}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>Select all</span>
-                </label>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
+          <div className="flex items-center gap-1">
+            {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
+            <button
+              type="button"
+              onClick={() => setLegendOpen((open) => !open)}
+              className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-100"
+              aria-label={
+                legendOpen
+                  ? "Collapse Destination Entrances legend"
+                  : "Expand Destination Entrances legend"
+              }
+            >
+              {legendOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+          </div>
+        </div>
+        {error ? (
+          <div className={MAP_OVERLAY_META_TEXT_CLASS.replace("text-muted-foreground", "text-red-600")}>{error}</div>
+        ) : (
+          <div className="grid gap-1">
+            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-gray-100">
+              <input
+                type="checkbox"
+                checked={allCategoriesSelected}
+                onChange={handleToggleAllCategories}
+                className="h-3.5 w-3.5"
+              />
+              <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>Select all</span>
+            </label>
 
-                {legendOpen ? (
-                  <div className="max-h-[12.5rem] overflow-y-auto pb-2 pr-1">
-                    <div className="grid gap-1">
-                      {POI_CATEGORIES.map((category) => {
-                        const enabled = enabledCategories.has(category.value)
-                        return (
-                          <label
-                            key={category.value}
-                            className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-gray-100"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={enabled}
-                              onChange={() => toggleCategory(category.value)}
-                              className="h-3.5 w-3.5"
-                            />
-                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-black bg-white">
-                              <span className="text-[11px] leading-none" aria-hidden>
-                                {category.icon}
-                              </span>
-                            </span>
-                            <span className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
-                              {category.label}
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ) : null}
+            {legendOpen ? (
+              <div className="max-h-[12.5rem] overflow-y-auto pb-2 pr-1">
+                <div className="grid gap-1">
+                  {POI_CATEGORIES.map((category) => {
+                    const enabled = enabledCategories.has(category.value)
+                    return (
+                      <label
+                        key={category.value}
+                        className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-gray-100"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          onChange={() => toggleCategory(category.value)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-black bg-white">
+                          <span className="text-[11px] leading-none" aria-hidden>
+                            {category.icon}
+                          </span>
+                        </span>
+                        <span className={`truncate ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
+                          {category.label}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
-            )}
-          </>
-        ) : null}
+            ) : null}
+          </div>
+        )}
         </div>
       ) : null}
     </>

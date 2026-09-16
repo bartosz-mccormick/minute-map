@@ -45,7 +45,6 @@ import {
   PRESETS,
   TRANSPORT_MODES,
   ALWAYS_AVAILABLE_INDICATORS,
-  hasCityFeature,
   isMinTravelTimeIndicator,
 } from "@/app-config"
 import type { MapboxDrawApi, Threshold, Weight } from "@/app-types"
@@ -75,7 +74,6 @@ export default function App() {
   const [mobileBottomPanelOpen, setMobileBottomPanelOpen] = React.useState(true)
   const [gridTransparency, setGridTransparency] = React.useState(65)
   const configDialogRef = React.useRef<HTMLDivElement | null>(null)
-  const hasDestinationEntrances = hasCityFeature(selectedCity, "destinationEntrances")
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
@@ -388,7 +386,7 @@ export default function App() {
           <PoiPreview
             gridTransparency={gridTransparency}
             onGridTransparencyChange={setGridTransparency}
-            destinationEntrancesEnabled={hasDestinationEntrances}
+            dataBucket={selectedCity.dataBucket}
           />
         )}
       </HexMap>
