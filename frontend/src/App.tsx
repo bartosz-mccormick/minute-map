@@ -12,6 +12,7 @@ import { polygon as turfPolygon } from "@turf/helpers"
 import { EditableThresholdsTable } from "@/components/editable-thresholds-table"
 import { EditableWeightsTable } from "@/components/editable-weights-table"
 import { NestedDropdownSelect } from "./components/nested-dropdown-select"
+import { LocationMapPicker } from "./components/location-map-picker"
 import { ComplianceStats } from "@/components/ui/compliance-stats"
 import { HexMap } from "./components/hex-map"
 import {
@@ -307,22 +308,11 @@ export default function App() {
   }
 
   const renderCitySelectorControl = () => (
-    <Select value={selectedCity.value} onValueChange={handleCityChange}>
-      <SelectTrigger className={`city-select-trigger h-10 w-[260px] bg-white shadow-lg ${MAP_OVERLAY_PANEL_TITLE_CLASS}`}>
-        <SelectValue placeholder="Select city" />
-      </SelectTrigger>
-      <SelectContent>
-        {CITY_OPTIONS.map((city) => (
-          <SelectItem
-            key={city.value}
-            value={city.value}
-            className={MAP_OVERLAY_BODY_MAIN_CLASS}
-          >
-            {city.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <LocationMapPicker
+      cities={CITY_OPTIONS}
+      selectedCity={selectedCity}
+      onCityChange={handleCityChange}
+    />
   )
 
   return (
