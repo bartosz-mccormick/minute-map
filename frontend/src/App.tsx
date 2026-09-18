@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Github, Info, Settings, Loa
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cellToBoundary } from "h3-js"
 import { booleanIntersects } from "@turf/boolean-intersects"
 import { polygon as turfPolygon } from "@turf/helpers"
@@ -20,6 +20,7 @@ import {
   shouldUseHexPerformanceFixture,
 } from "@/components/map-performance"
 import { PoiPreview } from "./components/poi_preview"
+import { prefetchPois } from "@/components/poi/poiData"
 import { useDuckDbClient } from "@/hooks/use-duckdb-client"
 import { useMapIndicatorState } from "@/hooks/use-map-indicator-state"
 import { useRunAnalysis } from "@/hooks/use-run-analysis"
@@ -37,10 +38,10 @@ import {
   DESTINATIONS,
   fmt,
   CITY_OPTIONS,
-  INITIAL_CITY,
   INITIAL_SCENARIO,
   INITIAL_THRESHOLDS,
   INITIAL_WEIGHTS,
+  DEFAULT_PRESET_ID,
   MAX_TT,
   PRESET_NESTED_OPTIONS,
   PRESETS,
@@ -63,22 +64,31 @@ export default function App() {
   const mapPerformanceMode = getMapPerformanceMode()
   const isBaseMapOnly = mapPerformanceMode === "base"
   const useHexPerformanceFixture = shouldUseHexPerformanceFixture()
-  const [selectedCity, setSelectedCity] = React.useState(INITIAL_CITY)
+  const [selectedCity, setSelectedCity] = React.useState<typeof CITY_OPTIONS[number] | null>(null)
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
-  const [selectedPreset, setSelectedPreset] = React.useState("custom")
+  const [selectedPreset, setSelectedPreset] = React.useState(DEFAULT_PRESET_ID)
   const [thresholds, setThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
   const [weights, setWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
   const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
   const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
+  const [initialLocationSelectionPending, setInitialLocationSelectionPending] = React.useState(true)
+  const [autoAnalyzePending, setAutoAnalyzePending] = React.useState(false)
   const [configOpen, setConfigOpen] = React.useState(false)
   const [configScrollControl, setConfigScrollControl] = React.useState<"down" | "up" | null>(null)
   const [mobileBottomPanelOpen, setMobileBottomPanelOpen] = React.useState(true)
   const [gridTransparency, setGridTransparency] = React.useState(65)
+  const [poiPrefetchStatus, setPoiPrefetchStatus] = React.useState<"idle" | "loading" | "loaded" | "error">("idle")
   const configDialogRef = React.useRef<HTMLDivElement | null>(null)
+  const poiPrefetchTimeoutRef = React.useRef<number | null>(null)
+  const selectedCityValueRef = React.useRef<string | null>(null)
 
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
-  const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture, selectedCity.dataBucket)
+  const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture, selectedCity?.dataBucket)
+
+  React.useEffect(() => {
+    selectedCityValueRef.current = selectedCity?.value ?? null
+  }, [selectedCity])
   const {
     selectedCellDetails,
     selectedCellDetailsCellId,
@@ -134,6 +144,47 @@ export default function App() {
     resetSelectedCells()
   }, [resetSelectedCells])
 
+  const schedulePoiPrefetch = React.useCallback(() => {
+    if (isBaseMapOnly || !selectedCity) return
+
+    const cityValue = selectedCity.value
+    const dataBucket = selectedCity.dataBucket
+    const delayMs = window.matchMedia("(max-width: 700px)").matches ? 4500 : 2000
+
+    if (poiPrefetchTimeoutRef.current !== null) {
+      window.clearTimeout(poiPrefetchTimeoutRef.current)
+    }
+
+    setPoiPrefetchStatus("idle")
+    poiPrefetchTimeoutRef.current = window.setTimeout(() => {
+      const startPrefetch = () => {
+        setPoiPrefetchStatus("loading")
+        prefetchPois(dataBucket)
+          .then(() => {
+            setPoiPrefetchStatus((current) =>
+              selectedCityValueRef.current === cityValue && current === "loading" ? "loaded" : current
+            )
+          })
+          .catch(() => {
+            setPoiPrefetchStatus((current) =>
+              selectedCityValueRef.current === cityValue && current === "loading" ? "error" : current
+            )
+          })
+      }
+
+      const idleWindow = window as Window & {
+        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+      }
+
+      if (selectedCityValueRef.current !== cityValue) return
+      if (idleWindow.requestIdleCallback) {
+        idleWindow.requestIdleCallback(startPrefetch, { timeout: 3000 })
+      } else {
+        startPrefetch()
+      }
+    }, delayMs)
+  }, [isBaseMapOnly, selectedCity])
+
   const { loading, handleAnalyze } = useRunAnalysis({
     thresholds,
     weights,
@@ -146,6 +197,7 @@ export default function App() {
     clearMapData,
     setMapDataError,
     setConfigOpen,
+    onAnalysisSuccess: schedulePoiPrefetch,
   })
 
   const polygonSelectedCellIds = React.useMemo(() => {
@@ -211,7 +263,7 @@ export default function App() {
 
   const handleReset = () => {
     setSelectedScenario(INITIAL_SCENARIO)
-    setSelectedPreset("custom")
+    setSelectedPreset(DEFAULT_PRESET_ID)
     setThresholds(INITIAL_THRESHOLDS)
     setWeights(INITIAL_WEIGHTS)
     setCustomThresholds(INITIAL_THRESHOLDS)
@@ -259,19 +311,38 @@ export default function App() {
 
   const handleCityChange = (cityValue: string) => {
     const nextCity = CITY_OPTIONS.find((city) => city.value === cityValue)
-    if (!nextCity || nextCity.value === selectedCity.value) return
+    if (!nextCity || nextCity.value === selectedCity?.value) return
 
     setSelectedCity(nextCity)
-    setSelectedPreset("custom")
+    setSelectedPreset(DEFAULT_PRESET_ID)
     setThresholds(INITIAL_THRESHOLDS)
     setWeights(INITIAL_WEIGHTS)
     setCustomThresholds(INITIAL_THRESHOLDS)
     setCustomWeights(INITIAL_WEIGHTS)
     setAvailableIndicators(ALWAYS_AVAILABLE_INDICATORS)
     setDrawnPolygons([])
+    setPoiPrefetchStatus("idle")
+    if (poiPrefetchTimeoutRef.current !== null) {
+      window.clearTimeout(poiPrefetchTimeoutRef.current)
+      poiPrefetchTimeoutRef.current = null
+    }
     resetSelectedCells()
     clearMapData("Run analysis to load map data.")
   }
+
+  React.useEffect(() => {
+    return () => {
+      if (poiPrefetchTimeoutRef.current !== null) {
+        window.clearTimeout(poiPrefetchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!autoAnalyzePending || !selectedCity || loading || !isFormValid) return
+    setAutoAnalyzePending(false)
+    void handleAnalyze()
+  }, [autoAnalyzePending, handleAnalyze, isFormValid, loading, selectedCity])
 
   const updateConfigScrollControl = React.useCallback(() => {
     const dialog = configDialogRef.current
@@ -311,7 +382,14 @@ export default function App() {
     <LocationMapPicker
       cities={CITY_OPTIONS}
       selectedCity={selectedCity}
-      onCityChange={handleCityChange}
+      defaultOpen={initialLocationSelectionPending}
+      onCityChange={(cityValue) => {
+        handleCityChange(cityValue)
+        setAutoAnalyzePending(true)
+        if (initialLocationSelectionPending) {
+          setInitialLocationSelectionPending(false)
+        }
+      }}
     />
   )
 
@@ -350,37 +428,48 @@ export default function App() {
           </div>
         )}
       </header>
-      <HexMap
-        key={selectedCity.value}
-        hexData={hexData}
-        indicator={selectedIndicator}
-        initialViewState={selectedCity.viewState}
-        fillBounds={activeFillConfig.bounds}
-        fillColors={activeFillConfig.colors}
-        showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
-        gridOpacity={(100 - gridTransparency) / 100}
-        selectedCellIds={selectedCellIds}
-        drawnPolygons={drawnPolygons}
-        onCellClick={drawnPolygons.length > 0 ? undefined : handleMapCellClick}
-        onPolygonsChange={(features) => {
-          setDrawnPolygons(features)
-          if (features.length === 0) {
-            setSelectedCellIds(new Set())
-            clearSelectedCellDetails()
-          } else {
-            clearSelectedCellDetails()
-          }
-        }}
-        drawRef={drawRef}
-      >
-        {isBaseMapOnly ? null : (
-          <PoiPreview
-            gridTransparency={gridTransparency}
-            onGridTransparencyChange={setGridTransparency}
-            dataBucket={selectedCity.dataBucket}
-          />
-        )}
-      </HexMap>
+      {selectedCity ? (
+        <div className="main-map-frame">
+          <HexMap
+            key={selectedCity.value}
+            hexData={hexData}
+            indicator={selectedIndicator}
+            initialViewState={selectedCity.viewState}
+            fillBounds={activeFillConfig.bounds}
+            fillColors={activeFillConfig.colors}
+            showOverflowBin={isMinTravelTimeIndicator(selectedIndicator)}
+            gridOpacity={(100 - gridTransparency) / 100}
+            selectedCellIds={selectedCellIds}
+            drawnPolygons={drawnPolygons}
+            onCellClick={drawnPolygons.length > 0 ? undefined : handleMapCellClick}
+            onPolygonsChange={(features) => {
+              setDrawnPolygons(features)
+              if (features.length === 0) {
+                setSelectedCellIds(new Set())
+                clearSelectedCellDetails()
+              } else {
+                clearSelectedCellDetails()
+              }
+            }}
+            drawRef={drawRef}
+          >
+            {isBaseMapOnly ? null : (
+              <PoiPreview
+                gridTransparency={gridTransparency}
+                onGridTransparencyChange={setGridTransparency}
+                dataBucket={selectedCity.dataBucket}
+                prefetchedStatus={poiPrefetchStatus}
+              />
+            )}
+          </HexMap>
+          {loading ? (
+            <div className="main-map-loading-overlay" role="status" aria-live="polite">
+              <div className="main-map-loading-spinner" aria-hidden />
+              <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Default calculation running</div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mobile-bottom-panel">
       <button
@@ -415,6 +504,9 @@ export default function App() {
           >
           <DialogHeader>
             <DialogTitle className={MAP_OVERLAY_DIALOG_TITLE_CLASS}>X-Minute City Analysis Configuration</DialogTitle>
+            <DialogDescription className="sr-only">
+              Configure travel scenario, preference set, weights, and compliance thresholds.
+            </DialogDescription>
           </DialogHeader>
 
           <div className={`space-y-6 py-4 ${MAP_OVERLAY_BODY_MAIN_CLASS}`}>
@@ -456,6 +548,10 @@ export default function App() {
                           setSelectedPreset("custom")
                           setThresholds(customThresholds)
                           setWeights(customWeights)
+                        } else if (value === DEFAULT_PRESET_ID) {
+                          setSelectedPreset(DEFAULT_PRESET_ID)
+                          setThresholds(INITIAL_THRESHOLDS)
+                          setWeights(INITIAL_WEIGHTS)
                         } else {
                           setSelectedPreset(value)
                           applyPreset(value)

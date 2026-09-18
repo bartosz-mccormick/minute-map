@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -19,8 +20,9 @@ import {
 
 type LocationMapPickerProps = {
   cities: CityConfig[]
-  selectedCity: CityConfig
+  selectedCity: CityConfig | null
   onCityChange: (cityValue: string) => void
+  defaultOpen?: boolean
 }
 
 const OVERVIEW_VIEW_STATE = {
@@ -37,8 +39,10 @@ export function LocationMapPicker({
   cities,
   selectedCity,
   onCityChange,
+  defaultOpen = false,
 }: LocationMapPickerProps) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(defaultOpen)
+  const [mapReady, setMapReady] = React.useState(false)
   const mapRef = React.useRef<MapRef | null>(null)
   const labelRefs = React.useRef<Record<string, HTMLSpanElement | null>>({})
   const [labelSides, setLabelSides] = React.useState<Record<string, LabelSide>>({})
@@ -124,8 +128,21 @@ export function LocationMapPicker({
 
   React.useEffect(() => {
     if (!open) return
-    const frame = window.requestAnimationFrame(updateLabelSides)
-    return () => window.cancelAnimationFrame(frame)
+    setMapReady(false)
+    const frames: number[] = []
+    const resizeMap = () => {
+      mapRef.current?.resize()
+      updateLabelSides()
+    }
+
+    frames.push(window.requestAnimationFrame(resizeMap))
+    frames.push(window.requestAnimationFrame(() => window.requestAnimationFrame(resizeMap)))
+    const timeout = window.setTimeout(resizeMap, 250)
+
+    return () => {
+      frames.forEach((frame) => window.cancelAnimationFrame(frame))
+      window.clearTimeout(timeout)
+    }
   }, [open, updateLabelSides])
 
   return (
@@ -135,12 +152,16 @@ export function LocationMapPicker({
           type="button"
           variant="outline"
           className="location-map-trigger bg-white shadow-lg"
-          aria-label={`Change location, currently ${selectedCity.label}`}
+          aria-label={
+            selectedCity
+              ? `Change location, currently ${selectedCity.label}`
+              : "Choose location on map"
+          }
           title="Choose on Map"
         >
           <MapPin className="h-4 w-4" aria-hidden />
           <span className={`${MAP_OVERLAY_PANEL_TITLE_CLASS} location-map-trigger-label`}>
-            {selectedCity.label}
+            {selectedCity?.label ?? "Choose location"}
           </span>
         </Button>
       </DialogTrigger>
@@ -149,6 +170,9 @@ export function LocationMapPicker({
           <DialogTitle className={MAP_OVERLAY_DIALOG_TITLE_CLASS}>
             Choose location
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Select a city location on the map to load the mobility analysis.
+          </DialogDescription>
         </DialogHeader>
         <div className="location-map-canvas">
           <Map
@@ -157,14 +181,18 @@ export function LocationMapPicker({
             mapStyle={MAP_STYLE}
             attributionControl={false}
             style={{ width: "100%", height: "100%" }}
-            onLoad={updateLabelSides}
+            onLoad={() => {
+              setMapReady(true)
+              mapRef.current?.resize()
+              updateLabelSides()
+            }}
             onMove={updateLabelSides}
             onZoom={updateLabelSides}
             onResize={updateLabelSides}
           >
             <NavigationControl position="top-left" showCompass={false} />
             {cities.map((city) => {
-              const isSelected = city.value === selectedCity.value
+              const isSelected = city.value === selectedCity?.value
 
               return (
                 <Marker
@@ -199,6 +227,11 @@ export function LocationMapPicker({
               )
             })}
           </Map>
+          {!mapReady ? (
+            <div className={`${MAP_OVERLAY_PANEL_TITLE_CLASS} location-map-loading`}>
+              Loading map
+            </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

@@ -15,6 +15,7 @@ type UseRunAnalysisParams = {
   clearMapData: (message: string) => void
   setMapDataError: React.Dispatch<React.SetStateAction<string | null>>
   setConfigOpen: React.Dispatch<React.SetStateAction<boolean>>
+  onAnalysisSuccess?: () => void
 }
 
 export function useRunAnalysis({
@@ -29,6 +30,7 @@ export function useRunAnalysis({
   clearMapData,
   setMapDataError,
   setConfigOpen,
+  onAnalysisSuccess,
 }: UseRunAnalysisParams) {
   const [loading, setLoading] = React.useState(false)
 
@@ -50,6 +52,7 @@ export function useRunAnalysis({
       resetSelection()
       setAvailableIndicators(buildIndicatorOptions(thresholds))
       setConfigOpen(false)
+      onAnalysisSuccess?.()
     } catch (error) {
       console.error("DuckDB analysis failed:", error)
       setAvailableIndicators([])
@@ -62,6 +65,7 @@ export function useRunAnalysis({
     ensureDuckDbClient,
     loadMapData,
     loadAmenityRadarData,
+    onAnalysisSuccess,
     resetSelection,
     selectedIndicator,
     setAvailableIndicators,

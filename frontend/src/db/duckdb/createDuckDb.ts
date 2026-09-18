@@ -13,6 +13,10 @@ export type DuckDbClient = {
 
 let cachedClient: DuckDbClient | null = null;
 
+const quietLogger: duckdb.Logger = {
+  log: () => {},
+};
+
 async function createDuckDbClient(): Promise<DuckDbClient> {
   const bundles: duckdb.DuckDBBundles = {
     mvp: {
@@ -32,9 +36,8 @@ async function createDuckDbClient(): Promise<DuckDbClient> {
   }
 
   const worker = new Worker(bundle.mainWorker);
-  const logger = new duckdb.ConsoleLogger();
 
-  const db = new duckdb.AsyncDuckDB(logger, worker);
+  const db = new duckdb.AsyncDuckDB(quietLogger, worker);
 
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 

@@ -45,9 +45,5 @@ export function useDuckDbClient(useHexPerformanceFixture: boolean, dataBucket?: 
     duckDbClientBucketRef.current = dataBucket
   }, [dataBucket])
 
-  React.useEffect(() => {
-    void ensureDuckDbClient()
-  }, [ensureDuckDbClient])
-
   return { ensureDuckDbClient }
 }

@@ -148,6 +148,57 @@
   justify-content: center;
 }
 
+.main-map-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.main-map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background:
+    linear-gradient(115deg, rgba(248, 250, 252, 0.82), rgba(224, 242, 254, 0.78), rgba(240, 253, 244, 0.78), rgba(248, 250, 252, 0.82));
+  background-size: 240% 240%;
+  color: #0f172a;
+  backdrop-filter: blur(6px);
+  animation: main-map-loading-flow 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.main-map-loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid rgba(15, 23, 42, 0.18);
+  border-top-color: #2563eb;
+  border-radius: 9999px;
+  animation: main-map-loading-spin 0.9s linear infinite;
+}
+
+@keyframes main-map-loading-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes main-map-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .mobile-app-header {
   position: fixed;
   top: 0;
@@ -251,9 +302,25 @@
 }
 
 .location-map-canvas {
+  position: relative;
   height: min(68vh, 38rem);
   min-height: 24rem;
   border-top: 1px solid rgba(15, 23, 42, 0.12);
+  background: #eef3f0;
+}
+
+.location-map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(198, 223, 231, 0.9), transparent 32%),
+    linear-gradient(135deg, #eef3f0 0%, #f7f5f0 52%, #e8eef1 100%);
+  color: #334155;
+  pointer-events: none;
 }
 
 .location-map-pin {
@@ -580,7 +647,7 @@
     max-width: 10rem;
   }
 
-  .app-shell > .maplibregl-map {
+  .app-shell > .main-map-frame {
     height: calc(50dvh - 3.75rem) !important;
     min-height: 0;
     flex: 0 0 calc(50dvh - 3.75rem);
@@ -601,7 +668,7 @@
     transition: height 180ms ease, flex-basis 180ms ease;
   }
 
-  .mobile-bottom-panel-collapsed > .maplibregl-map {
+  .mobile-bottom-panel-collapsed > .main-map-frame {
     height: calc(100dvh - 3.75rem - 6rem) !important;
     flex-basis: calc(100dvh - 3.75rem - 6rem);
   }

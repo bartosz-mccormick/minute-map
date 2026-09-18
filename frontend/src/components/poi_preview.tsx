@@ -1,5 +1,4 @@
 import * as React from "react"
-import * as duckdb from "@duckdb/duckdb-wasm"
 import { IconLayer, ScatterplotLayer } from "@deck.gl/layers"
 import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox"
 import {
@@ -15,22 +14,17 @@ import {
   MAP_OVERLAY_META_TEXT_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
-import { getDataFileUrl, POI_DESTINATIONS } from "@/app-config"
 import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
+import {
+  getPoiLoadStatus,
+  loadPois,
+  POI_CATEGORIES,
+  type PoiCategory,
+  type PoiLoadStatus,
+  type PoiRow,
+} from "@/components/poi/poiData"
 import { usePoiViewportSync, type PoiMapLike } from "@/components/poi/usePoiViewportSync"
 import { Slider } from "@/components/ui/slider"
-import type { Destination } from "@/app-types"
-
-type PoiCategory = Destination["value"]
-
-type PoiRow = {
-  poi_id: string
-  name: string
-  category: PoiCategory
-  subtype: string
-  lon: number
-  lat: number
-}
 
 type PoiMarkerRow = {
   marker_id: string
@@ -47,36 +41,7 @@ type PoiPreviewProps = {
   gridTransparency: number
   onGridTransparencyChange: (value: number) => void
   dataBucket?: string | null
-}
-
-type RawPoiRow = {
-  poi_id?: string
-  name?: string
-  category?: string
-  subtype?: string
-  lon?: number
-  lat?: number
-  geom?: ArrayBuffer | Uint8Array | number[] | string
-}
-
-type PoiSource = {
-  file: string
-  query: string
-}
-
-const POI_SOURCE: PoiSource = {
-  file: "entrances.parquet",
-  query: `
-    SELECT
-      CAST(row_number() OVER () AS VARCHAR) AS poi_id,
-      __NAME_SELECT__ AS name,
-      class_b AS category,
-      '' AS subtype,
-      geom
-    FROM poi_src
-    WHERE class_b IN (__CATEGORIES__)
-      AND geom IS NOT NULL
-  `,
+  prefetchedStatus?: PoiLoadStatus
 }
 
 const DETAILED_POI_ZOOM = 14
@@ -86,15 +51,6 @@ const MEDIUM_CLUSTER_PIXEL_SIZE = 28
 const POI_VIEWPORT_OVERSCAN_RATIO = 0.75
 const MAP_CONTROL_HITBOX_WIDTH = 84
 const MAP_CONTROL_HITBOX_HEIGHT = 160
-
-const POI_CATEGORIES: Array<{
-  value: PoiCategory
-  label: string
-  icon: string
-}> = [
-  ...POI_DESTINATIONS,
-]
-
 
 const categoryConfigByValue = new Map(POI_CATEGORIES.map((category) => [category.value, category]))
 const iconUrlByCategory = new Map(
@@ -128,53 +84,10 @@ const iconDefinitionByCategory = new Map(
   ])
 )
 
-const poiRowsPromisesByUrl = new Map<string, Promise<PoiRow[]>>()
-
 function DeckGLOverlay(props: ConstructorParameters<typeof DeckOverlay>[0]) {
   const overlay = useControl(() => new DeckOverlay({ interleaved: true, ...props }))
   overlay.setProps({ interleaved: true, ...props })
   return null
-}
-
-function sqlList(values: string[]) {
-  return values.map((value) => `'${value.replace(/'/g, "''")}'`).join(", ")
-}
-
-function getDuckDbFileUrl(url: string) {
-  return new URL(url, window.location.href).href
-}
-
-function parseWkbPoint(value: RawPoiRow["geom"]): { lon: number; lat: number } | null {
-  if (!value) return null
-
-  let bytes: Uint8Array
-  if (value instanceof Uint8Array) {
-    bytes = value
-  } else if (value instanceof ArrayBuffer) {
-    bytes = new Uint8Array(value)
-  } else if (Array.isArray(value)) {
-    bytes = new Uint8Array(value)
-  } else if (typeof value === "string") {
-    const cleanHex = value.startsWith("\\x") ? value.slice(2) : value
-    if (cleanHex.length < 42 || cleanHex.length % 2 !== 0) return null
-    bytes = new Uint8Array(cleanHex.length / 2)
-    for (let i = 0; i < cleanHex.length; i += 2) {
-      bytes[i / 2] = Number.parseInt(cleanHex.slice(i, i + 2), 16)
-    }
-  } else {
-    return null
-  }
-
-  if (bytes.byteLength < 21) return null
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const littleEndian = view.getUint8(0) === 1
-  const geometryType = view.getUint32(1, littleEndian)
-  if (geometryType !== 1) return null
-
-  return {
-    lon: view.getFloat64(5, littleEndian),
-    lat: view.getFloat64(13, littleEndian),
-  }
 }
 
 function toMarkerRow(poi: PoiRow): PoiMarkerRow {
@@ -326,92 +239,11 @@ function filterPoisToViewport(
   ))
 }
 
-function toPoiRows(rawRows: RawPoiRow[]): PoiRow[] {
-  return rawRows
-    .map((row) => {
-      const parsedPoint =
-        typeof row.lon === "number" && typeof row.lat === "number"
-          ? { lon: row.lon, lat: row.lat }
-          : parseWkbPoint(row.geom)
-
-      if (
-        !parsedPoint ||
-        typeof row.category !== "string" ||
-        !categoryConfigByValue.has(row.category as PoiCategory)
-      ) {
-        return null
-      }
-
-      return {
-        poi_id: row.poi_id || `${row.category}-${parsedPoint.lon}-${parsedPoint.lat}`,
-        name: row.name || "",
-        category: row.category as PoiCategory,
-        subtype: row.subtype || "",
-        lon: parsedPoint.lon,
-        lat: parsedPoint.lat,
-      }
-    })
-    .filter((row): row is PoiRow => row !== null)
-}
-
-async function hasPoiSourceColumn(conn: duckdb.AsyncDuckDBConnection, columnName: string) {
-  const result = await conn.query("DESCRIBE poi_src")
-  return result
-    .toArray()
-    .some((row) => {
-      const json = row.toJSON() as { column_name?: unknown }
-      return String(json.column_name ?? "").toLowerCase() === columnName.toLowerCase()
-    })
-}
-
-async function loadPois(dataBucket?: string | null): Promise<PoiRow[]> {
-  const sourceUrl = getDataFileUrl(POI_SOURCE.file, dataBucket)
-  const absoluteSourceUrl = getDuckDbFileUrl(sourceUrl)
-  const cachedRowsPromise = poiRowsPromisesByUrl.get(absoluteSourceUrl)
-  if (cachedRowsPromise) return cachedRowsPromise
-
-  const poiRowsPromise = (async () => {
-    incrementPoiPerfCounter("loadPois")
-
-    const { createIsolatedDuckDb } = await import("@/db/duckdb/createDuckDb")
-    const { db, conn } = await createIsolatedDuckDb()
-    const categoryValues = POI_CATEGORIES.map((category) => category.value)
-
-    await conn.query("SET enable_geoparquet_conversion = false")
-
-    await db.registerFileURL(
-      POI_SOURCE.file,
-      absoluteSourceUrl,
-      duckdb.DuckDBDataProtocol.HTTP,
-      false
-    )
-
-    await conn.query(`
-      CREATE OR REPLACE VIEW poi_src AS
-      SELECT *
-      FROM read_parquet('${POI_SOURCE.file}')
-    `)
-
-    const nameSelect = await hasPoiSourceColumn(conn, "name")
-      ? "COALESCE(NULLIF(TRIM(CAST(name AS VARCHAR)), ''), '')"
-      : "''"
-    const result = await conn.query(
-      POI_SOURCE.query
-        .replace("__CATEGORIES__", sqlList([...new Set(categoryValues)]))
-        .replace("__NAME_SELECT__", nameSelect)
-    )
-
-    return toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow))
-  })()
-
-  poiRowsPromisesByUrl.set(absoluteSourceUrl, poiRowsPromise)
-  return poiRowsPromise
-}
-
 export function PoiPreview({
   gridTransparency,
   onGridTransparencyChange,
   dataBucket,
+  prefetchedStatus,
 }: PoiPreviewProps) {
   const { current: map } = useMap()
   const [pois, setPois] = React.useState<PoiRow[]>([])
@@ -428,6 +260,9 @@ export function PoiPreview({
     title: string
     lines: string[]
   } | null>(null)
+  const poiLoadStatus = loading
+    ? "loading"
+    : prefetchedStatus ?? getPoiLoadStatus(dataBucket)
 
   const handleViewportSettled = React.useCallback(() => {
     setViewRevision((current) => current + 1)
@@ -755,7 +590,13 @@ export function PoiPreview({
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Destination Entrances</div>
           <div className="flex items-center gap-1">
-            {loading ? <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div> : null}
+            {poiLoadStatus === "loading" ? (
+              <div className={MAP_OVERLAY_META_TEXT_CLASS}>Loading</div>
+            ) : poiLoadStatus === "loaded" ? (
+              <div className={MAP_OVERLAY_META_TEXT_CLASS}>POI loaded</div>
+            ) : poiLoadStatus === "error" ? (
+              <div className={MAP_OVERLAY_META_TEXT_CLASS.replace("text-muted-foreground", "text-red-600")}>Load failed</div>
+            ) : null}
             <button
               type="button"
               onClick={() => setLegendOpen((open) => !open)}

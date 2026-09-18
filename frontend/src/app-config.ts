@@ -147,7 +147,17 @@ export const INITIAL_WEIGHTS: Weight[] = [
 
 export const INITIAL_SCENARIO = "current"
 
-export const INITIAL_THRESHOLDS: Threshold[] = []
+export const DEFAULT_PRESET_ID = "default_15_minute_city"
+
+export const INITIAL_THRESHOLDS: Threshold[] = [
+  {
+    id: "default-15-minute-city",
+    selectedDestinations: DESTINATIONS.map((d) => d.value),
+    quantity: 1,
+    transportMode: "walk",
+    travelTime: 15,
+  },
+]
 
 export const ALWAYS_AVAILABLE_INDICATORS: NestedOption[] = [
   { value: "compliance_weighted_avg", label: "X-Min City Compliance" },
@@ -202,6 +212,7 @@ for (const presets of Object.values(presetsByCity)) {
 }
 
 export const PRESET_NESTED_OPTIONS: NestedOption[] = [
+  { value: DEFAULT_PRESET_ID, label: "Default" },
   { value: "custom", label: "Custom" },
   ...Object.entries(presetsByCity).map(([cityId, presets]) => ({
     value: cityId,

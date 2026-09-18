@@ -305,7 +305,7 @@ export function ComplianceStats({
       radar: {
         center: ["50%", "51%"],
         radius: "72%",
-        nameGap: 22,
+        axisNameGap: 22,
         splitNumber: radarRingBounds.length - 1,
         shape: "circle",
         axisName: {
