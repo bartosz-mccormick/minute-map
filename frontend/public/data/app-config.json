@@ -1,0 +1,256 @@
+{
+  "cities": [
+    {
+      "value": "munich",
+      "label": "Munich, DE",
+      "dataBucket": "https://data.minutemap.online/munich",
+      "defaultPresetId": "munich_general",
+      "viewState": { "longitude": 11.57471, "latitude": 48.13481, "zoom": 10, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    },
+    {
+      "value": "utrecht",
+      "label": "Utrecht, NL",
+      "dataBucket": "https://data.minutemap.online/utrecht",
+      "defaultPresetId": "utrecht_general",
+      "viewState": { "longitude": 5.11912, "latitude": 52.09369, "zoom": 11.8, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    },
+    {
+      "value": "rakosmente",
+      "label": "Rakosmente (Budapest, HU)",
+      "dataBucket": "https://data.minutemap.online/rakosmente",
+      "defaultPresetId": "budapest_general",
+      "viewState": { "longitude": 19.27001, "latitude": 47.47023, "zoom": 12, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    },
+    {
+      "value": "liesing",
+      "label": "Liesing (Vienna, AT)",
+      "dataBucket": "https://data.minutemap.online/liesing",
+      "defaultPresetId": "vienna_general",
+      "viewState": { "longitude": 16.28298, "latitude": 48.13573, "zoom": 12, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    },
+    {
+      "value": "geretsried",
+      "label": "Geretsried, DE",
+      "dataBucket": "https://data.minutemap.online/geretsried",
+      "defaultPresetId": "munich_general",
+      "viewState": { "longitude": 11.46147, "latitude": 47.87307, "zoom": 12, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    },
+    {
+      "value": "noh",
+      "label": "Neder-Over-Heembeek (Brussels, BE)",
+      "dataBucket": "https://data.minutemap.online/noh",
+      "defaultPresetId": "brussels_general",
+      "viewState": { "longitude": 4.41858, "latitude": 50.89126, "zoom": 13, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    },
+    {
+      "value": "evry-courcouronnes",
+      "label": "Evry-Courcouronnes (Paris, FR)",
+      "dataBucket": "https://data.minutemap.online/evry-courcouronnes",
+      "defaultPresetId": "paris_general",
+      "viewState": { "longitude": 2.42612, "latitude": 48.62579, "zoom": 11.5, "pitch": 0, "bearing": 0 },
+      "modes": ["Walking (4 km/h)", "Cycling"],
+      "indicators": {
+        "overall": [
+          { "value": "compliance_weighted_avg", "label": "X-Min City Compliance" },
+          { "value": "pop", "label": "Population" }
+        ],
+        "perAmenity": [
+          { "value": "compliance", "label": "Compliance" },
+          { "value": "min_travel_time", "label": "Time to Nearest" },
+          { "value": "n_total", "label": "Number of Opportunities" }
+        ]
+      },
+      "amenities": [
+        { "value": "grocery", "label": "Supermarket", "icon": "\uD83D\uDED2" },
+        { "value": "pharmacy", "label": "Pharmacy", "icon": "\uD83D\uDC8A" },
+        { "value": "atm_bank", "label": "ATM/Bank", "icon": "\uD83C\uDFE6" },
+        { "value": "post", "label": "Post Office", "icon": "\uD83D\uDCE6" },
+        { "value": "gp", "label": "General Practitioner", "icon": "\uD83E\uDE7A" },
+        { "value": "restaurant", "label": "Restaurant", "icon": "\uD83C\uDF7D\uFE0F" },
+        { "value": "cafe", "label": "Cafe", "icon": "\u2615" },
+        { "value": "bar", "label": "Bar", "icon": "\uD83C\uDF7A" },
+        { "value": "bakery", "label": "Bakery", "icon": "\uD83E\uDD50" },
+        { "value": "school", "label": "School", "icon": "\uD83C\uDFEB" },
+        { "value": "kindergarten", "label": "Kindergarten", "icon": "\uD83E\uDDF8" },
+        { "value": "library", "label": "Library", "icon": "\uD83D\uDCDA" },
+        { "value": "sport", "label": "Sports Facility", "icon": "\uD83C\uDFC3" },
+        { "value": "park", "label": "Park", "icon": "\uD83C\uDF33" },
+        { "value": "playground", "label": "Playground", "icon": "\uD83D\uDEDD" }
+      ]
+    }
+  ]
+}
