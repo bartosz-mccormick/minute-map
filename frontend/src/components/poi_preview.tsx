@@ -18,13 +18,13 @@ import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
 import {
   getPoiLoadStatus,
   loadPois,
-  POI_CATEGORIES,
   type PoiCategory,
   type PoiLoadStatus,
   type PoiRow,
 } from "@/components/poi/poiData"
 import { usePoiViewportSync, type PoiMapLike } from "@/components/poi/usePoiViewportSync"
 import { Slider } from "@/components/ui/slider"
+import type { Destination } from "@/app-types"
 
 type PoiMarkerRow = {
   marker_id: string
@@ -41,6 +41,7 @@ type PoiPreviewProps = {
   gridTransparency: number
   onGridTransparencyChange: (value: number) => void
   dataBucket?: string | null
+  destinations: Destination[]
   prefetchedStatus?: PoiLoadStatus
 }
 
@@ -52,9 +53,13 @@ const POI_VIEWPORT_OVERSCAN_RATIO = 0.75
 const MAP_CONTROL_HITBOX_WIDTH = 84
 const MAP_CONTROL_HITBOX_HEIGHT = 160
 
-const categoryConfigByValue = new Map(POI_CATEGORIES.map((category) => [category.value, category]))
-const iconUrlByCategory = new Map(
-  POI_CATEGORIES.map((category) => {
+function createCategoryConfigByValue(categories: Destination[]) {
+  return new Map(categories.map((category) => [category.value, category]))
+}
+
+function createIconDefinitionByCategory(categories: Destination[]) {
+  const iconUrlByCategory = new Map(
+    categories.map((category) => {
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
         <text x="16" y="23" text-anchor="middle" font-size="21">${category.icon}</text>
@@ -62,8 +67,23 @@ const iconUrlByCategory = new Map(
     `.trim()
 
     return [category.value, `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`]
-  })
-)
+    })
+  )
+
+  return new Map(
+    categories.map((category) => [
+      category.value,
+      {
+        url: iconUrlByCategory.get(category.value) ?? "",
+        width: 32,
+        height: 32,
+        anchorX: 16,
+        anchorY: 16,
+      },
+    ])
+  )
+}
+
 const emptyIconDefinition = {
   url: "",
   width: 32,
@@ -71,18 +91,6 @@ const emptyIconDefinition = {
   anchorX: 16,
   anchorY: 16,
 }
-const iconDefinitionByCategory = new Map(
-  POI_CATEGORIES.map((category) => [
-    category.value,
-    {
-      url: iconUrlByCategory.get(category.value) ?? "",
-      width: 32,
-      height: 32,
-      anchorX: 16,
-      anchorY: 16,
-    },
-  ])
-)
 
 function DeckGLOverlay(props: ConstructorParameters<typeof DeckOverlay>[0]) {
   const overlay = useControl(() => new DeckOverlay({ interleaved: true, ...props }))
@@ -129,7 +137,8 @@ function buildPixelGridMarkers(
   pois: PoiRow[],
   map: unknown,
   revision: number,
-  pixelSize: number
+  pixelSize: number,
+  categoryConfigByValue: Map<string, Destination>
 ): PoiMarkerRow[] {
   void revision
 
@@ -243,9 +252,19 @@ export function PoiPreview({
   gridTransparency,
   onGridTransparencyChange,
   dataBucket,
+  destinations,
   prefetchedStatus,
 }: PoiPreviewProps) {
   const { current: map } = useMap()
+  const poiCategories = destinations
+  const categoryConfigByValue = React.useMemo(
+    () => createCategoryConfigByValue(poiCategories),
+    [poiCategories]
+  )
+  const iconDefinitionByCategory = React.useMemo(
+    () => createIconDefinitionByCategory(poiCategories),
+    [poiCategories]
+  )
   const [pois, setPois] = React.useState<PoiRow[]>([])
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -262,7 +281,7 @@ export function PoiPreview({
   } | null>(null)
   const poiLoadStatus = loading
     ? "loading"
-    : prefetchedStatus ?? getPoiLoadStatus(dataBucket)
+    : prefetchedStatus ?? getPoiLoadStatus(dataBucket, poiCategories)
 
   const handleViewportSettled = React.useCallback(() => {
     setViewRevision((current) => current + 1)
@@ -279,7 +298,7 @@ export function PoiPreview({
     setPois([])
     setError(null)
     setLoading(false)
-  }, [dataBucket])
+  }, [dataBucket, poiCategories])
 
   React.useEffect(() => {
     let cancelled = false
@@ -290,7 +309,7 @@ export function PoiPreview({
     }
 
     setLoading(true)
-    loadPois(dataBucket)
+    loadPois(dataBucket, poiCategories)
       .then((rows) => {
         if (!cancelled) {
           setPois(rows)
@@ -311,7 +330,7 @@ export function PoiPreview({
     return () => {
       cancelled = true
     }
-  }, [dataBucket, enabledCategories.size, pois.length])
+  }, [dataBucket, enabledCategories.size, poiCategories, pois.length])
 
   const visiblePois = React.useMemo(
     () => pois.filter((poi) => enabledCategories.has(poi.category)),
@@ -347,9 +366,10 @@ export function PoiPreview({
       renderablePois,
       map,
       viewRevision,
-      MEDIUM_CLUSTER_PIXEL_SIZE
+      MEDIUM_CLUSTER_PIXEL_SIZE,
+      categoryConfigByValue
     )
-  }, [map, renderablePois, showCloseMarkers, showDetailedMarkers, viewRevision])
+  }, [categoryConfigByValue, map, renderablePois, showCloseMarkers, showDetailedMarkers, viewRevision])
   const typedMarkerRows = React.useMemo(
     () => markerRows.filter((marker): marker is PoiMarkerRow & { category: PoiCategory } => !marker.mixed && marker.category !== null),
     [markerRows]
@@ -448,13 +468,13 @@ export function PoiPreview({
     })
   }, [])
 
-  const allCategoriesSelected = enabledCategories.size === POI_CATEGORIES.length
+  const allCategoriesSelected = enabledCategories.size === poiCategories.length
   const handleToggleAllCategories = React.useCallback(() => {
     setEnabledCategories((current) => {
-      if (current.size === POI_CATEGORIES.length) return new Set()
-      return new Set(POI_CATEGORIES.map((category) => category.value))
+      if (current.size === poiCategories.length) return new Set()
+      return new Set(poiCategories.map((category) => category.value))
     })
-  }, [])
+  }, [poiCategories])
 
   const buildPoiTooltip = React.useCallback((object?: PoiRow | PoiMarkerRow) => {
     if (!object) return null
@@ -628,7 +648,7 @@ export function PoiPreview({
             {legendOpen ? (
               <div className="max-h-[12.5rem] overflow-y-auto pb-2 pr-1">
                 <div className="grid gap-1">
-                  {POI_CATEGORIES.map((category) => {
+                  {poiCategories.map((category) => {
                     const enabled = enabledCategories.has(category.value)
                     return (
                       <label

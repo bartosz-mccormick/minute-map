@@ -1,6 +1,6 @@
 import * as React from "react"
-import { ALWAYS_AVAILABLE_INDICATORS, DESTINATIONS, getIndicatorFillConfig } from "@/app-config"
-import type { HexMapDeckObject, MapboxDrawApi, NestedOption } from "@/app-types"
+import { getIndicatorFillConfig } from "@/app-config"
+import type { Destination, HexMapDeckObject, MapboxDrawApi, NestedOption } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
 import { useHexPerformanceFixtureSupport } from "@/performance-fixtures/hex-performance-fixture"
 import { useMapData } from "./use-map-data"
@@ -18,15 +18,17 @@ function logSelectionTiming(label: string, startedAt: number, details?: Record<s
   console.info(`[selection-timing] ${label}: ${elapsedMs.toFixed(2)}ms`, details ?? {})
 }
 
-function getAmenityFromComplianceIndicator(indicator: string) {
+function getAmenityFromComplianceIndicator(indicator: string, destinations: Destination[]) {
   const [amenity, , metric] = indicator.split("::")
   if (metric !== "compliance") return null
-  return DESTINATIONS.some((destination) => destination.value === amenity) ? amenity : null
+  return destinations.some((destination) => destination.value === amenity) ? amenity : null
 }
 
 type UseMapIndicatorStateParams = {
   useHexPerformanceFixture: boolean
   ensureDuckDbClient: () => Promise<DuckDbClient>
+  destinations: Destination[]
+  initialIndicators: NestedOption[]
   drawRef: React.MutableRefObject<MapboxDrawApi | null>
   setDrawnPolygons: React.Dispatch<React.SetStateAction<GeoJSON.Feature[]>>
   selectedCellDetailsCellId: string | null
@@ -37,6 +39,8 @@ type UseMapIndicatorStateParams = {
 export function useMapIndicatorState({
   useHexPerformanceFixture,
   ensureDuckDbClient,
+  destinations,
+  initialIndicators,
   drawRef,
   setDrawnPolygons,
   selectedCellDetailsCellId,
@@ -45,7 +49,7 @@ export function useMapIndicatorState({
 }: UseMapIndicatorStateParams) {
   const [selectedIndicator, setSelectedIndicator] = React.useState("compliance_weighted_avg")
   const [availableIndicators, setAvailableIndicators] = React.useState<NestedOption[]>(
-    ALWAYS_AVAILABLE_INDICATORS
+    initialIndicators
   )
   const [selectedCellIds, setSelectedCellIds] = React.useState<Set<string>>(() => new Set())
   const {
@@ -62,7 +66,16 @@ export function useMapIndicatorState({
     loadAmenityRadarData,
     clearSelectedAmenityRadarData,
     nextMapDataRequestId,
-  } = useMapData(ensureDuckDbClient)
+  } = useMapData(ensureDuckDbClient, destinations)
+
+  React.useEffect(() => {
+    setAvailableIndicators(initialIndicators)
+    setSelectedIndicator((current) =>
+      initialIndicators.some((indicator) => indicator.value === current)
+        ? current
+        : initialIndicators[0]?.value ?? "compliance_weighted_avg"
+    )
+  }, [initialIndicators])
 
   const selectedCellsData = React.useMemo(
     () => hexData.filter((cell) => selectedCellIds.has(cell.h3_cell)),
@@ -244,7 +257,7 @@ export function useMapIndicatorState({
         return
       }
 
-      const amenity = getAmenityFromComplianceIndicator(selectedIndicator)
+      const amenity = getAmenityFromComplianceIndicator(selectedIndicator, destinations)
       if (!amenity) {
         handleSelectBin(binIndex)
         return
@@ -304,6 +317,7 @@ export function useMapIndicatorState({
       selectedCellIds,
       selectedIndicator,
       setDrawnPolygons,
+      destinations,
     ]
   )
 

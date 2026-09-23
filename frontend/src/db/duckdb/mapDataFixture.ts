@@ -1,4 +1,3 @@
-import { ALWAYS_AVAILABLE_INDICATORS } from "@/app-config"
 import type { HexMapCell } from "@/app-types"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"
 
@@ -26,7 +25,7 @@ function parseIndicator(indicator: string) {
   const defaultResponse = {
     amenity: null,
     mode: null,
-    metric: ALWAYS_AVAILABLE_INDICATORS[0].value,
+    metric: "compliance_weighted_avg",
   }
 
   if (["compliance_weighted_avg", "pop"].includes(indicator)) {

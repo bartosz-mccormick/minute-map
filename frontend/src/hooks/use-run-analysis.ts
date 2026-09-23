@@ -1,6 +1,6 @@
 import * as React from "react"
 import { buildIndicatorOptions } from "@/app-config"
-import type { NestedOption, Threshold, Weight } from "@/app-types"
+import type { Destination, NestedOption, Threshold, TransportMode, Weight } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
 
 type UseRunAnalysisParams = {
@@ -15,6 +15,10 @@ type UseRunAnalysisParams = {
   clearMapData: (message: string) => void
   setMapDataError: React.Dispatch<React.SetStateAction<string | null>>
   setConfigOpen: React.Dispatch<React.SetStateAction<boolean>>
+  destinations: Destination[]
+  transportModes: TransportMode[]
+  baseIndicators: NestedOption[]
+  singleDestinationIndicators: NestedOption[]
   onAnalysisSuccess?: () => void
 }
 
@@ -30,6 +34,10 @@ export function useRunAnalysis({
   clearMapData,
   setMapDataError,
   setConfigOpen,
+  destinations,
+  transportModes,
+  baseIndicators,
+  singleDestinationIndicators,
   onAnalysisSuccess,
 }: UseRunAnalysisParams) {
   const [loading, setLoading] = React.useState(false)
@@ -50,7 +58,12 @@ export function useRunAnalysis({
       await loadMapData(selectedIndicator)
       await loadAmenityRadarData()
       resetSelection()
-      setAvailableIndicators(buildIndicatorOptions(thresholds))
+      setAvailableIndicators(buildIndicatorOptions(thresholds, {
+        destinations,
+        transportModes,
+        baseIndicators,
+        singleDestinationIndicators,
+      }))
       setConfigOpen(false)
       onAnalysisSuccess?.()
     } catch (error) {
@@ -71,6 +84,10 @@ export function useRunAnalysis({
     setAvailableIndicators,
     setConfigOpen,
     setMapDataError,
+    destinations,
+    transportModes,
+    baseIndicators,
+    singleDestinationIndicators,
     thresholds,
     weights,
   ])

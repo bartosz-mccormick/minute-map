@@ -1,90 +1,19 @@
 import presetsConfig from "@/config/presets.json"
 import type {
-  Color,
   BinConfig,
-  CityConfig,
+  Color,
   Destination,
   NestedOption,
   PresetDefinition,
   PresetsConfigByCity,
   Threshold,
   TransportMode,
-  Weight,
 } from "./app-types"
 
+export const R2_BUCKET = import.meta.env.VITE_R2_BUCKET?.trim().replace(/\/+$/, "") || null
 
-
-export const INITIAL_VIEW_STATE = {
-  longitude: Number(import.meta.env.VITE_INITIAL_LONGITUDE),
-  latitude: Number(import.meta.env.VITE_INITIAL_LATITUDE),
-  zoom: Number(import.meta.env.VITE_INITIAL_ZOOM),
-  pitch: Number(import.meta.env.VITE_INITIAL_PITCH),
-  bearing: Number(import.meta.env.VITE_INITIAL_BEARING),
-}
-
-// handle parquet files
-export const R2_BUCKET = import.meta.env.VITE_R2_BUCKET?.trim().replace(/\/+$/, "") || null;
-  
 export const getDataFileUrl = (filename: string, bucket = R2_BUCKET): string =>
-  bucket ? `${bucket}/${filename}` : `/data/${filename}`;
-
-function cityBucket(path: string) {
-  return `https://data.minutemap.online/${path}`
-}
-
-export const CITY_OPTIONS: CityConfig[] = [
-  {
-    value: "munich",
-    label: "Munich, DE",
-    dataBucket: R2_BUCKET,
-    defaultPresetId: "munich_general",
-    viewState: INITIAL_VIEW_STATE,
-  },
-  {
-    value: "utrecht",
-    label: "Utrecht, NL",
-    dataBucket: cityBucket("utrecht"),
-    defaultPresetId: "utrecht_general",
-    viewState: { longitude: 5.11912, latitude: 52.09369, zoom: 11.8, pitch: 0, bearing: 0 },
-  },
-  {
-    value: "rakosmente",
-    label: "Rakosmente (Budapest, HU)",
-    dataBucket: cityBucket("rakosmente"),
-    defaultPresetId: "budapest_general",
-    viewState: { longitude: 19.27001, latitude: 47.47023, zoom: 12, pitch: 0, bearing: 0 },
-  },
-  {
-    value: "liesing",
-    label: "Liesing (Vienna, AT)",
-    dataBucket: cityBucket("liesing"),
-    defaultPresetId: "vienna_general",
-    viewState: { longitude: 16.28298, latitude: 48.13573, zoom: 12, pitch: 0, bearing: 0 },
-  },
-  {
-    value: "geretsried",
-    label: "Geretsried, DE",
-    dataBucket: cityBucket("geretsried"),
-    defaultPresetId: "munich_general",
-    viewState: { longitude: 11.46147, latitude: 47.87307, zoom: 12, pitch: 0, bearing: 0 },
-  },
-  {
-    value: "noh",
-    label: "Neder-Over-Heembeek (Brussels, BE)",
-    dataBucket: cityBucket("noh"),
-    defaultPresetId: "brussels_general",
-    viewState: { longitude: 4.41858, latitude: 50.89126, zoom: 13, pitch: 0, bearing: 0 },
-  },
-  {
-    value: "evry-courcouronnes",
-    label: "Evry-Courcouronnes (Paris, FR)",
-    dataBucket: cityBucket("evry-courcouronnes"),
-    defaultPresetId: "paris_general",
-    viewState: { longitude: 2.42612, latitude: 48.62579, zoom: 11.5, pitch: 0, bearing: 0 },
-  },
-]
-
-export const INITIAL_CITY = CITY_OPTIONS[0]
+  bucket ? `${bucket}/${filename}` : `/data/${filename}`
 
 export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 export const MAX_TT = 30
@@ -108,67 +37,8 @@ export const TRAVEL_TIME_FILL_COLORS: Color[] = [
   [68, 1, 84],
 ]
 
-export const DESTINATIONS: Destination[] = [
-  { value: "grocery", label: "Supermarket", icon: "🛒" },
-  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
-  { value: "atm_bank", label: "ATM/Bank", icon: "🏦" },
-  { value: "post", label: "Post Office", icon: "📦" },
-  { value: "gp", label: "General Practitioner", icon: "🩺" },
-  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
-  { value: "cafe", label: "Cafe", icon: "☕" },
-  { value: "bar", label: "Bar", icon: "🍺" },
-  { value: "bakery", label: "Bakery", icon: "🥐" },
-  { value: "school", label: "School", icon: "🏫" },
-  { value: "kindergarten", label: "Kindergarten", icon: "🧸" },
-  { value: "library", label: "Library", icon: "📚" },
-  { value: "sport", label: "Sports Facility", icon: "🏃" },
-  { value: "park", label: "Park", icon: "🌳" },
-  { value: "playground", label: "Playground", icon: "🛝" },
-]
-
-export const POI_DESTINATIONS: Destination[] = DESTINATIONS.map((destination) =>
-  destination.value === "park"
-    ? { ...destination, label: "Park entrances", icon: "🌳" }
-    : destination
-)
-
-export const TRANSPORT_MODES: TransportMode[] = [
-  { value: "walk", label: "Walking (4 km/h)" },
-  { value: "bike", label: "Cycling" },
-]
-
-export const INITIAL_WEIGHTS: Weight[] = [
-  {
-    id: "weights-entry",
-    selectedDestinations: DESTINATIONS.map((d) => d.value),
-    weight: 1,
-  },
-]
-
 export const INITIAL_SCENARIO = "current"
-
 export const DEFAULT_PRESET_ID = "default_15_minute_city"
-
-export const INITIAL_THRESHOLDS: Threshold[] = [
-  {
-    id: "default-15-minute-city",
-    selectedDestinations: DESTINATIONS.map((d) => d.value),
-    quantity: 1,
-    transportMode: "walk",
-    travelTime: 15,
-  },
-]
-
-export const ALWAYS_AVAILABLE_INDICATORS: NestedOption[] = [
-  { value: "compliance_weighted_avg", label: "X-Min City Compliance" },
-  { value: "pop", label: "Population" }
-]
-
-export const SINGLE_DESTINATION_INDICATORS = [
-  { value: "compliance", label: "Compliance" },
-  { value: "min_travel_time", label: "Time to Nearest" },
-  { value: "n_total", label: "Number of Opportunities" },
-]
 
 export function rgb([r, g, b]: Color) {
   return `rgb(${r} ${g} ${b})`
@@ -248,7 +118,10 @@ export function getIndicatorFillColors(indicator: string | undefined, nBins: num
   return sampleColors(COMPLIANCE_FILL_COLORS, nBins)
 }
 
-export function getIndicatorFillConfig(indicator: string | undefined, bounds: number[]): { bounds: number[]; colors: Color[] } {
+export function getIndicatorFillConfig(
+  indicator: string | undefined,
+  bounds: number[]
+): { bounds: number[]; colors: Color[] } {
   const colors = getIndicatorFillColors(indicator, bounds.length - 1)
   return {
     bounds,
@@ -258,40 +131,47 @@ export function getIndicatorFillConfig(indicator: string | undefined, bounds: nu
   }
 }
 
-export function getDestinationLabel(value: string) {
-  return DESTINATIONS.find((d) => d.value === value)?.label || value
+export function getDestinationLabel(value: string, destinations: Destination[]) {
+  return destinations.find((destination) => destination.value === value)?.label || value
 }
 
-export function getDestinationIcon(value: string) {
-  return DESTINATIONS.find((d) => d.value === value)?.icon || ""
+export function getDestinationIcon(value: string, destinations: Destination[]) {
+  return destinations.find((destination) => destination.value === value)?.icon || ""
 }
 
-export function getModeLabel(value: string) {
-  return TRANSPORT_MODES.find((d) => d.value === value)?.label || ""
+export function getModeLabel(value: string, transportModes: TransportMode[]) {
+  return transportModes.find((mode) => mode.value === value)?.label || ""
 }
 
-export function buildIndicatorOptions(thresholds: Threshold[]): NestedOption[] {
+export function buildIndicatorOptions(
+  thresholds: Threshold[],
+  options: {
+    destinations: Destination[]
+    transportModes: TransportMode[]
+    baseIndicators: NestedOption[]
+    singleDestinationIndicators: NestedOption[]
+  }
+): NestedOption[] {
   const amenityModes: Record<string, Set<string>> = {}
 
   for (const threshold of thresholds) {
     for (const amenity of threshold.selectedDestinations) {
-      if (!amenityModes[amenity]) {
-        amenityModes[amenity] = new Set()
-      }
-
+      amenityModes[amenity] ??= new Set()
       amenityModes[amenity].add(threshold.transportMode)
     }
   }
 
   return [
-    ...ALWAYS_AVAILABLE_INDICATORS,
+    ...options.baseIndicators,
     ...Object.entries(amenityModes).map(([amenity, modes]) => ({
       value: amenity,
-      label: getDestinationIcon(amenity) + getDestinationLabel(amenity),
+      label:
+        getDestinationIcon(amenity, options.destinations) +
+        getDestinationLabel(amenity, options.destinations),
       children: [...modes].sort().map((mode) => ({
         value: `${amenity}::${mode}`,
-        label: getModeLabel(mode),
-        children: SINGLE_DESTINATION_INDICATORS.map((indicator) => ({
+        label: getModeLabel(mode, options.transportModes),
+        children: options.singleDestinationIndicators.map((indicator) => ({
           value: `${amenity}::${mode}::${indicator.value}`,
           label: indicator.label,
         })),

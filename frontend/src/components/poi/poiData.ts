@@ -1,4 +1,4 @@
-import { getDataFileUrl, POI_DESTINATIONS } from "@/app-config"
+import { getDataFileUrl } from "@/app-config"
 import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
 import type { Destination } from "@/app-types"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"
@@ -46,15 +46,6 @@ const POI_SOURCE: PoiSource = {
   `,
 }
 
-export const POI_CATEGORIES: Array<{
-  value: PoiCategory
-  label: string
-  icon: string
-}> = [
-  ...POI_DESTINATIONS,
-]
-
-const categoryConfigByValue = new Map(POI_CATEGORIES.map((category) => [category.value, category]))
 const poiRowsPromisesByUrl = new Map<string, Promise<PoiRow[]>>()
 const poiRowsByUrl = new Map<string, PoiRow[]>()
 const poiLoadStatusByUrl = new Map<string, PoiLoadStatus>()
@@ -104,7 +95,12 @@ function parseWkbPoint(value: RawPoiRow["geom"]): { lon: number; lat: number } |
   }
 }
 
-function toPoiRows(rawRows: RawPoiRow[]): PoiRow[] {
+function getPoiCacheKey(url: string, categories: Destination[]) {
+  return `${url}::${categories.map((category) => category.value).sort().join(",")}`
+}
+
+function toPoiRows(rawRows: RawPoiRow[], categories: Destination[]): PoiRow[] {
+  const categoryConfigByValue = new Set(categories.map((category) => category.value))
   return rawRows
     .map((row) => {
       const parsedPoint =
@@ -115,7 +111,7 @@ function toPoiRows(rawRows: RawPoiRow[]): PoiRow[] {
       if (
         !parsedPoint ||
         typeof row.category !== "string" ||
-        !categoryConfigByValue.has(row.category as PoiCategory)
+        !categoryConfigByValue.has(row.category)
       ) {
         return null
       }
@@ -142,26 +138,33 @@ async function hasPoiSourceColumn(conn: AsyncDuckDBConnection, columnName: strin
     })
 }
 
-export function getPoiLoadStatus(dataBucket?: string | null): PoiLoadStatus {
-  return poiLoadStatusByUrl.get(getPoiSourceUrl(dataBucket)) ?? "idle"
+export function getPoiLoadStatus(
+  dataBucket: string | null | undefined,
+  categories: Destination[]
+): PoiLoadStatus {
+  return poiLoadStatusByUrl.get(getPoiCacheKey(getPoiSourceUrl(dataBucket), categories)) ?? "idle"
 }
 
-export async function loadPois(dataBucket?: string | null): Promise<PoiRow[]> {
+export async function loadPois(
+  dataBucket: string | null | undefined,
+  categories: Destination[]
+): Promise<PoiRow[]> {
   const absoluteSourceUrl = getPoiSourceUrl(dataBucket)
-  const cachedRows = poiRowsByUrl.get(absoluteSourceUrl)
+  const cacheKey = getPoiCacheKey(absoluteSourceUrl, categories)
+  const cachedRows = poiRowsByUrl.get(cacheKey)
   if (cachedRows) return cachedRows
 
-  const cachedRowsPromise = poiRowsPromisesByUrl.get(absoluteSourceUrl)
+  const cachedRowsPromise = poiRowsPromisesByUrl.get(cacheKey)
   if (cachedRowsPromise) return cachedRowsPromise
 
   const poiRowsPromise = (async () => {
     incrementPoiPerfCounter("loadPois")
-    poiLoadStatusByUrl.set(absoluteSourceUrl, "loading")
+    poiLoadStatusByUrl.set(cacheKey, "loading")
 
     const { createIsolatedDuckDb } = await import("@/db/duckdb/createDuckDb")
     const duckdb = await import("@duckdb/duckdb-wasm")
     const { db, conn } = await createIsolatedDuckDb()
-    const categoryValues = POI_CATEGORIES.map((category) => category.value)
+    const categoryValues = categories.map((category) => category.value)
 
     await conn.query("SET enable_geoparquet_conversion = false")
 
@@ -187,20 +190,23 @@ export async function loadPois(dataBucket?: string | null): Promise<PoiRow[]> {
         .replace("__NAME_SELECT__", nameSelect)
     )
 
-    const rows = toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow))
-    poiRowsByUrl.set(absoluteSourceUrl, rows)
-    poiLoadStatusByUrl.set(absoluteSourceUrl, "loaded")
+    const rows = toPoiRows(result.toArray().map((row) => row.toJSON() as RawPoiRow), categories)
+    poiRowsByUrl.set(cacheKey, rows)
+    poiLoadStatusByUrl.set(cacheKey, "loaded")
     return rows
   })().catch((error) => {
-    poiRowsPromisesByUrl.delete(absoluteSourceUrl)
-    poiLoadStatusByUrl.set(absoluteSourceUrl, "error")
+    poiRowsPromisesByUrl.delete(cacheKey)
+    poiLoadStatusByUrl.set(cacheKey, "error")
     throw error
   })
 
-  poiRowsPromisesByUrl.set(absoluteSourceUrl, poiRowsPromise)
+  poiRowsPromisesByUrl.set(cacheKey, poiRowsPromise)
   return poiRowsPromise
 }
 
-export async function prefetchPois(dataBucket?: string | null): Promise<void> {
-  await loadPois(dataBucket)
+export async function prefetchPois(
+  dataBucket: string | null | undefined,
+  categories: Destination[]
+): Promise<void> {
+  await loadPois(dataBucket, categories)
 }

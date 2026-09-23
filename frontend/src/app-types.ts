@@ -17,6 +17,10 @@ export interface CityConfig {
   label: string
   dataBucket: string | null
   defaultPresetId?: string
+  amenities?: Destination[]
+  transportModes?: TransportMode[]
+  indicators?: NestedOption[]
+  singleDestinationIndicators?: NestedOption[]
   viewState: {
     longitude: number
     latitude: number

@@ -2,7 +2,7 @@ import * as React from "react"
 import ReactECharts from "echarts-for-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { DESTINATIONS, getIndicatorBinConfig, isComplianceIndicator, rgb } from "@/app-config"
+import { getIndicatorBinConfig, isComplianceIndicator, rgb } from "@/app-config"
 import {
   MAP_OVERLAY_BODY_SMALL_CLASS,
   MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,
@@ -10,7 +10,7 @@ import {
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import { buildBins, calculateBinnedStats, type BinRange } from "@/lib/binning"
-import type { AmenityRadarDataResult, Color } from "@/app-types"
+import type { AmenityRadarDataResult, Color, Destination } from "@/app-types"
 
 type HexItem = {
   pop?: number
@@ -32,6 +32,7 @@ interface ComplianceStatsProps {
   amenityRadarData?: AmenityRadarDataResult
   selectedAmenityRadarData?: AmenityRadarDataResult
   selectedIndicator?: string
+  destinations: Destination[]
   onSelectBin: (binIndex: number | null) => void
   onSelectBins?: (binIndexes: number[]) => void
   onSelectRadarBin?: (binIndex: number | null, bounds: readonly number[]) => void
@@ -100,6 +101,7 @@ export function ComplianceStats({
   amenityRadarData = EMPTY_AMENITY_RADAR_DATA,
   selectedAmenityRadarData = EMPTY_AMENITY_RADAR_DATA,
   selectedIndicator,
+  destinations,
   onSelectBin,
   onSelectBins,
   onSelectRadarBin,
@@ -172,8 +174,8 @@ export function ComplianceStats({
   }, [amenityRadarData])
   const radarDestinations = React.useMemo(() => {
     const returnedAmenities = new Set(amenityRadarData.rows.map((row) => row.amenity))
-    return DESTINATIONS.filter((destination) => returnedAmenities.has(destination.value))
-  }, [amenityRadarData])
+    return destinations.filter((destination) => returnedAmenities.has(destination.value))
+  }, [amenityRadarData, destinations])
   const selectedRadarValueByAmenity = React.useMemo(() => {
     return new Map(selectedAmenityRadarData.rows.map((row) => [row.amenity, row.value]))
   }, [selectedAmenityRadarData])
@@ -187,8 +189,8 @@ export function ComplianceStats({
   }, [])
   const highlightedAmenity = React.useMemo(() => {
     const [amenity] = selectedIndicator?.split("::") ?? []
-    return DESTINATIONS.some((destination) => destination.value === amenity) ? amenity : null
-  }, [selectedIndicator])
+    return destinations.some((destination) => destination.value === amenity) ? amenity : null
+  }, [destinations, selectedIndicator])
   const hasRadarSelection = hasSelection && selectedAmenityRadarData.rows.length > 0
   const radarRingBounds = React.useMemo(() => {
     const config = getIndicatorBinConfig("compliance_weighted_avg")

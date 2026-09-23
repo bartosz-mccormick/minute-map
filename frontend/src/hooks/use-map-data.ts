@@ -1,6 +1,5 @@
 import * as React from "react"
-import { DESTINATIONS } from "@/app-config"
-import type { AmenityRadarDataResult, HexMapCell } from "@/app-types"
+import type { AmenityRadarDataResult, Destination, HexMapCell } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
 
 const EMPTY_AMENITY_RADAR_DATA: AmenityRadarDataResult = {
@@ -8,7 +7,10 @@ const EMPTY_AMENITY_RADAR_DATA: AmenityRadarDataResult = {
   rows: [],
 }
 
-export function useMapData(ensureDuckDbClient: () => Promise<DuckDbClient>) {
+export function useMapData(
+  ensureDuckDbClient: () => Promise<DuckDbClient>,
+  destinations: Destination[]
+) {
   const [hexData, setHexData] = React.useState<HexMapCell[]>([])
   const [amenityRadarData, setAmenityRadarData] = React.useState<AmenityRadarDataResult>(EMPTY_AMENITY_RADAR_DATA)
   const [selectedAmenityRadarData, setSelectedAmenityRadarData] = React.useState<AmenityRadarDataResult>(EMPTY_AMENITY_RADAR_DATA)
@@ -51,7 +53,7 @@ export function useMapData(ensureDuckDbClient: () => Promise<DuckDbClient>) {
       const { getAmenityRadarData } = await import("@/db/duckdb/runCalculations")
       const rows = await getAmenityRadarData(client.conn, h3Cells)
       const returnedAmenities = new Set(rows.map((row) => row.amenity))
-      const missingAmenities = DESTINATIONS
+      const missingAmenities = destinations
         .map((destination) => destination.value)
         .filter((amenity) => !returnedAmenities.has(amenity))
       if (missingAmenities.length > 0) {
@@ -77,7 +79,7 @@ export function useMapData(ensureDuckDbClient: () => Promise<DuckDbClient>) {
         setAmenityRadarData(nextRadarDataResult)
       }
     },
-    [ensureDuckDbClient]
+    [destinations, ensureDuckDbClient]
   )
 
   const clearSelectedAmenityRadarData = React.useCallback(() => {

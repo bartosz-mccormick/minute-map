@@ -22,6 +22,8 @@ export function EditableWeightsTable({
   setWeights,
   destinations,
 }: EditableWeightsTableProps) {
+  const getLocalDestinationLabel = (value: string) => getDestinationLabel(value, destinations)
+  const getLocalDestinationIcon = (value: string) => getDestinationIcon(value, destinations)
   // Build amenity -> weight map from the existing weights structure
   const amenityWeights = useMemo(() => {
     const map: Record<string, number> = {}
@@ -63,9 +65,9 @@ export function EditableWeightsTable({
             <TableRow key={destination.value}>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <span>{getDestinationIcon(destination.value)}</span>
+                  <span>{getLocalDestinationIcon(destination.value)}</span>
                   <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>
-                    {getDestinationLabel(destination.value)}
+                    {getLocalDestinationLabel(destination.value)}
                   </span>
                 </div>
               </TableCell>

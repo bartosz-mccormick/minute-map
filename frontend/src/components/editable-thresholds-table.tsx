@@ -48,6 +48,8 @@ export function EditableThresholdsTable({
   maxTravelTime = 60,
 }: EditableThresholdsTableProps) {
   const [openDestinationPopover, setOpenDestinationPopover] = useState<string | null>(null)
+  const getLocalDestinationLabel = (value: string) => getDestinationLabel(value, destinations)
+  const getLocalDestinationIcon = (value: string) => getDestinationIcon(value, destinations)
 
   const addNewRow = () => {
     const newThreshold: Threshold = {
@@ -160,9 +162,9 @@ export function EditableThresholdsTable({
                                       : "opacity-0"
                                   }`}
                                 />
-                                <span className="mr-2">{getDestinationIcon(destination.value)}</span>
+                                <span className="mr-2">{getLocalDestinationIcon(destination.value)}</span>
                                 <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>
-                                  {getDestinationLabel(destination.value)}
+                                  {getLocalDestinationLabel(destination.value)}
                                 </span>
                               </CommandItem>
                             ))}
@@ -178,13 +180,13 @@ export function EditableThresholdsTable({
                       variant="secondary"
                       className="pr-1 flex items-center gap-1"
                     >
-                      <span>{getDestinationIcon(dest)}</span>
-                      <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>{getDestinationLabel(dest)}</span>
+                      <span>{getLocalDestinationIcon(dest)}</span>
+                      <span className={MAP_OVERLAY_BODY_MAIN_CLASS}>{getLocalDestinationLabel(dest)}</span>
                       <button
                         type="button"
                         onClick={() => removeDestination(threshold.id, dest)}
                         className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
-                        aria-label={`Remove ${getDestinationLabel(dest)}`}
+                        aria-label={`Remove ${getLocalDestinationLabel(dest)}`}
                       >
                         <X className="h-3 w-3" />
                       </button>

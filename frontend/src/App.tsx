@@ -35,21 +35,25 @@ import {
   MAP_OVERLAY_SECTION_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
 import {
-  DESTINATIONS,
   fmt,
-  CITY_OPTIONS,
   INITIAL_SCENARIO,
-  INITIAL_THRESHOLDS,
-  INITIAL_WEIGHTS,
   DEFAULT_PRESET_ID,
   MAX_TT,
   PRESET_NESTED_OPTIONS,
   PRESETS,
-  TRANSPORT_MODES,
-  ALWAYS_AVAILABLE_INDICATORS,
   isMinTravelTimeIndicator,
 } from "@/app-config"
-import type { MapboxDrawApi, Threshold, Weight } from "@/app-types"
+import {
+  createDefaultThresholds,
+  createDefaultWeights,
+  getCityDestinations,
+  getCityIndicators,
+  getCitySingleDestinationIndicators,
+  getCityTransportModes,
+  loadAppConfigTemplate,
+  type ResolvedAppConfig,
+} from "@/runtime-app-config"
+import type { CityConfig, MapboxDrawApi, Threshold, Weight } from "@/app-types"
 
 const travelScenarios = [
   { value: "current", label: "Current" },
@@ -64,13 +68,40 @@ export default function App() {
   const mapPerformanceMode = getMapPerformanceMode()
   const isBaseMapOnly = mapPerformanceMode === "base"
   const useHexPerformanceFixture = shouldUseHexPerformanceFixture()
-  const [selectedCity, setSelectedCity] = React.useState<typeof CITY_OPTIONS[number] | null>(null)
+  const [appConfig, setAppConfig] = React.useState<ResolvedAppConfig | null>(null)
+  const [appConfigError, setAppConfigError] = React.useState<string | null>(null)
+  const cityOptions = appConfig?.cities ?? []
+  const [selectedCity, setSelectedCity] = React.useState<CityConfig | null>(null)
+  const activeDestinations = React.useMemo(
+    () => appConfig ? getCityDestinations(selectedCity, appConfig) : [],
+    [appConfig, selectedCity]
+  )
+  const activeTransportModes = React.useMemo(
+    () => appConfig ? getCityTransportModes(selectedCity, appConfig) : [],
+    [appConfig, selectedCity]
+  )
+  const activeIndicators = React.useMemo(
+    () => appConfig ? getCityIndicators(selectedCity, appConfig) : [],
+    [appConfig, selectedCity]
+  )
+  const activeSingleDestinationIndicators = React.useMemo(
+    () => appConfig ? getCitySingleDestinationIndicators(selectedCity, appConfig) : [],
+    [appConfig, selectedCity]
+  )
+  const defaultThresholds = React.useMemo(
+    () => createDefaultThresholds(activeDestinations, activeTransportModes),
+    [activeDestinations, activeTransportModes]
+  )
+  const defaultWeights = React.useMemo(
+    () => createDefaultWeights(activeDestinations),
+    [activeDestinations]
+  )
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
   const [selectedPreset, setSelectedPreset] = React.useState(DEFAULT_PRESET_ID)
-  const [thresholds, setThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
-  const [weights, setWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
-  const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>(INITIAL_THRESHOLDS)
-  const [customWeights, setCustomWeights] = React.useState<Weight[]>(INITIAL_WEIGHTS)
+  const [thresholds, setThresholds] = React.useState<Threshold[]>([])
+  const [weights, setWeights] = React.useState<Weight[]>([])
+  const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>([])
+  const [customWeights, setCustomWeights] = React.useState<Weight[]>([])
   const [initialLocationSelectionPending, setInitialLocationSelectionPending] = React.useState(true)
   const [autoAnalyzePending, setAutoAnalyzePending] = React.useState(false)
   const [configOpen, setConfigOpen] = React.useState(false)
@@ -85,6 +116,32 @@ export default function App() {
   const [drawnPolygons, setDrawnPolygons] = React.useState<GeoJSON.Feature[]>([])
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
   const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture, selectedCity?.dataBucket)
+
+  React.useEffect(() => {
+    let cancelled = false
+    loadAppConfigTemplate()
+      .then((nextConfig) => {
+        if (cancelled) return
+        setAppConfig(nextConfig)
+        setAppConfigError(null)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        console.error("Application config loading failed:", error)
+        setAppConfigError(error instanceof Error ? error.message : "Application config could not be loaded.")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!selectedCity) return
+    const nextCity = cityOptions.find((city) => city.value === selectedCity.value)
+    if (nextCity && nextCity !== selectedCity) {
+      setSelectedCity(nextCity)
+    }
+  }, [cityOptions, selectedCity])
 
   React.useEffect(() => {
     selectedCityValueRef.current = selectedCity?.value ?? null
@@ -122,6 +179,8 @@ export default function App() {
   } = useMapIndicatorState({
     useHexPerformanceFixture,
     ensureDuckDbClient,
+    destinations: activeDestinations,
+    initialIndicators: activeIndicators,
     drawRef,
     setDrawnPolygons,
     selectedCellDetailsCellId,
@@ -159,7 +218,7 @@ export default function App() {
     poiPrefetchTimeoutRef.current = window.setTimeout(() => {
       const startPrefetch = () => {
         setPoiPrefetchStatus("loading")
-        prefetchPois(dataBucket)
+        prefetchPois(dataBucket, activeDestinations)
           .then(() => {
             setPoiPrefetchStatus((current) =>
               selectedCityValueRef.current === cityValue && current === "loading" ? "loaded" : current
@@ -183,7 +242,7 @@ export default function App() {
         startPrefetch()
       }
     }, delayMs)
-  }, [isBaseMapOnly, selectedCity])
+  }, [activeDestinations, isBaseMapOnly, selectedCity])
 
   const { loading, handleAnalyze } = useRunAnalysis({
     thresholds,
@@ -197,6 +256,10 @@ export default function App() {
     clearMapData,
     setMapDataError,
     setConfigOpen,
+    destinations: activeDestinations,
+    transportModes: activeTransportModes,
+    baseIndicators: activeIndicators,
+    singleDestinationIndicators: activeSingleDestinationIndicators,
     onAnalysisSuccess: schedulePoiPrefetch,
   })
 
@@ -264,10 +327,10 @@ export default function App() {
   const handleReset = () => {
     setSelectedScenario(INITIAL_SCENARIO)
     setSelectedPreset(DEFAULT_PRESET_ID)
-    setThresholds(INITIAL_THRESHOLDS)
-    setWeights(INITIAL_WEIGHTS)
-    setCustomThresholds(INITIAL_THRESHOLDS)
-    setCustomWeights(INITIAL_WEIGHTS)
+    setThresholds(defaultThresholds)
+    setWeights(defaultWeights)
+    setCustomThresholds(defaultThresholds)
+    setCustomWeights(defaultWeights)
   }
 
   const applyPreset = React.useCallback((
@@ -279,18 +342,18 @@ export default function App() {
     const preset = PRESETS[presetId]
     if (!preset) return false
 
-    const nextWeights: Weight[] = DESTINATIONS.map((destination) => ({
+    const nextWeights: Weight[] = activeDestinations.map((destination) => ({
       id: `weight-${destination.value}`,
       selectedDestinations: [destination.value],
       weight: preset.weights[destination.value] ?? 1,
     }))
 
-    const nextThresholds: Threshold[] = DESTINATIONS.map((destination) => {
+    const nextThresholds: Threshold[] = activeDestinations.map((destination) => {
       const thresholdPreset =
         preset.thresholds[destination.value] ?? {
           selectedDestinations: [destination.value],
           quantity: 1,
-          transportMode: "walk",
+          transportMode: activeTransportModes[0]?.value ?? "walk",
           travelTime: 10,
         }
 
@@ -307,19 +370,26 @@ export default function App() {
       setCustomThresholds(nextThresholds)
     }
     return true
-  }, [])
+  }, [activeDestinations, activeTransportModes])
 
   const handleCityChange = (cityValue: string) => {
-    const nextCity = CITY_OPTIONS.find((city) => city.value === cityValue)
+    if (!appConfig) return
+    const nextCity = cityOptions.find((city) => city.value === cityValue)
     if (!nextCity || nextCity.value === selectedCity?.value) return
+
+    const nextDestinations = getCityDestinations(nextCity, appConfig)
+    const nextTransportModes = getCityTransportModes(nextCity, appConfig)
+    const nextIndicators = getCityIndicators(nextCity, appConfig)
+    const nextThresholds = createDefaultThresholds(nextDestinations, nextTransportModes)
+    const nextWeights = createDefaultWeights(nextDestinations)
 
     setSelectedCity(nextCity)
     setSelectedPreset(DEFAULT_PRESET_ID)
-    setThresholds(INITIAL_THRESHOLDS)
-    setWeights(INITIAL_WEIGHTS)
-    setCustomThresholds(INITIAL_THRESHOLDS)
-    setCustomWeights(INITIAL_WEIGHTS)
-    setAvailableIndicators(ALWAYS_AVAILABLE_INDICATORS)
+    setThresholds(nextThresholds)
+    setWeights(nextWeights)
+    setCustomThresholds(nextThresholds)
+    setCustomWeights(nextWeights)
+    setAvailableIndicators(nextIndicators)
     setDrawnPolygons([])
     setPoiPrefetchStatus("idle")
     if (poiPrefetchTimeoutRef.current !== null) {
@@ -380,7 +450,7 @@ export default function App() {
 
   const renderCitySelectorControl = () => (
     <LocationMapPicker
-      cities={CITY_OPTIONS}
+      cities={cityOptions}
       selectedCity={selectedCity}
       defaultOpen={initialLocationSelectionPending}
       onCityChange={(cityValue) => {
@@ -422,13 +492,27 @@ export default function App() {
             <Github size={18} />
           </a>
         </nav>
-        {isBaseMapOnly ? null : (
+        {isBaseMapOnly || !appConfig ? null : (
           <div className="desktop-header-city-control">
             {renderCitySelectorControl()}
           </div>
         )}
       </header>
-      {selectedCity ? (
+      {appConfigError ? (
+        <div className="main-map-frame">
+          <div className="main-map-loading-overlay" role="alert">
+            <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Application config failed to load</div>
+            <div className={MAP_OVERLAY_BODY_SMALL_CLASS}>{appConfigError}</div>
+          </div>
+        </div>
+      ) : !appConfig ? (
+        <div className="main-map-frame">
+          <div className="main-map-loading-overlay" role="status" aria-live="polite">
+            <div className="main-map-loading-spinner" aria-hidden />
+            <div className={MAP_OVERLAY_PANEL_TITLE_CLASS}>Loading application config</div>
+          </div>
+        </div>
+      ) : selectedCity ? (
         <div className="main-map-frame">
           <HexMap
             key={selectedCity.value}
@@ -458,6 +542,7 @@ export default function App() {
                 gridTransparency={gridTransparency}
                 onGridTransparencyChange={setGridTransparency}
                 dataBucket={selectedCity.dataBucket}
+                destinations={activeDestinations}
                 prefetchedStatus={poiPrefetchStatus}
               />
             )}
@@ -550,8 +635,8 @@ export default function App() {
                           setWeights(customWeights)
                         } else if (value === DEFAULT_PRESET_ID) {
                           setSelectedPreset(DEFAULT_PRESET_ID)
-                          setThresholds(INITIAL_THRESHOLDS)
-                          setWeights(INITIAL_WEIGHTS)
+                          setThresholds(defaultThresholds)
+                          setWeights(defaultWeights)
                         } else {
                           setSelectedPreset(value)
                           applyPreset(value)
@@ -581,7 +666,7 @@ export default function App() {
                     setWeights(next)
                     setCustomWeights(next)
                   }}
-                  destinations={DESTINATIONS}
+                  destinations={activeDestinations}
                 />
               </CardContent>
             </Card>
@@ -598,8 +683,8 @@ export default function App() {
                     setThresholds(next)
                     setCustomThresholds(next)
                   }}
-                  transportModes={TRANSPORT_MODES}
-                  destinations={DESTINATIONS}
+                  transportModes={activeTransportModes}
+                  destinations={activeDestinations}
                   maxTravelTime={MAX_TT}
                 />
               </CardContent>
@@ -690,6 +775,7 @@ export default function App() {
               amenityRadarData={amenityRadarData}
               selectedAmenityRadarData={selectedAmenityRadarData}
               selectedIndicator={selectedIndicator}
+              destinations={activeDestinations}
               onSelectBin={handleSelectBin}
               onSelectBins={handleSelectBins}
               onSelectRadarBin={handleSelectRadarBin}
