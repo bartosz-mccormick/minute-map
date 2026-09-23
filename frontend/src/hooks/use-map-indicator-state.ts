@@ -323,6 +323,7 @@ export function useMapIndicatorState({
 
   return {
     selectedIndicator,
+    setSelectedIndicator,
     availableIndicators,
     setAvailableIndicators,
     hexData,

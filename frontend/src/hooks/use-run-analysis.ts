@@ -7,6 +7,7 @@ type UseRunAnalysisParams = {
   thresholds: Threshold[]
   weights: Weight[]
   selectedIndicator: string
+  setSelectedIndicator: React.Dispatch<React.SetStateAction<string>>
   ensureDuckDbClient: () => Promise<DuckDbClient>
   loadMapData: (indicator: string) => Promise<boolean>
   loadAmenityRadarData: () => Promise<void>
@@ -26,6 +27,7 @@ export function useRunAnalysis({
   thresholds,
   weights,
   selectedIndicator,
+  setSelectedIndicator,
   ensureDuckDbClient,
   loadMapData,
   loadAmenityRadarData,
@@ -42,6 +44,12 @@ export function useRunAnalysis({
 }: UseRunAnalysisParams) {
   const [loading, setLoading] = React.useState(false)
 
+  const hasIndicator = React.useCallback((options: NestedOption[], value: string): boolean => {
+    return options.some((option) =>
+      option.value === value || (option.children ? hasIndicator(option.children, value) : false)
+    )
+  }, [])
+
   const handleAnalyze = React.useCallback(async () => {
     setLoading(true)
     setMapDataError(null)
@@ -55,15 +63,21 @@ export function useRunAnalysis({
 
       await createInputTables(client.conn, thresholds, weights)
       await runCalculations(client.conn)
-      await loadMapData(selectedIndicator)
-      await loadAmenityRadarData()
-      resetSelection()
-      setAvailableIndicators(buildIndicatorOptions(thresholds, {
+      const nextIndicators = buildIndicatorOptions(thresholds, {
         destinations,
         transportModes,
         baseIndicators,
         singleDestinationIndicators,
-      }))
+      })
+      const nextSelectedIndicator = hasIndicator(nextIndicators, selectedIndicator)
+        ? selectedIndicator
+        : nextIndicators[0]?.value ?? "compliance_weighted_avg"
+
+      setSelectedIndicator(nextSelectedIndicator)
+      setAvailableIndicators(nextIndicators)
+      await loadMapData(nextSelectedIndicator)
+      await loadAmenityRadarData()
+      resetSelection()
       setConfigOpen(false)
       onAnalysisSuccess?.()
     } catch (error) {
@@ -76,6 +90,7 @@ export function useRunAnalysis({
   }, [
     clearMapData,
     ensureDuckDbClient,
+    hasIndicator,
     loadMapData,
     loadAmenityRadarData,
     onAnalysisSuccess,
@@ -84,6 +99,7 @@ export function useRunAnalysis({
     setAvailableIndicators,
     setConfigOpen,
     setMapDataError,
+    setSelectedIndicator,
     destinations,
     transportModes,
     baseIndicators,

@@ -140,6 +140,7 @@ export default function App() {
   } = useSelectedCellDetails(ensureDuckDbClient)
   const {
     selectedIndicator,
+    setSelectedIndicator,
     availableIndicators,
     setAvailableIndicators,
     hexData,
@@ -267,6 +268,7 @@ export default function App() {
     thresholds,
     weights,
     selectedIndicator,
+    setSelectedIndicator,
     ensureDuckDbClient,
     loadMapData,
     loadAmenityRadarData,

@@ -112,6 +112,7 @@ export function ComplianceStats({
 }: ComplianceStatsProps) {
   const [plotType, setPlotType] = React.useState<(typeof PLOT_TYPES)[number]["value"]>("bar-chart")
   const [selectedRadarBinIndex, setSelectedRadarBinIndex] = React.useState<number | null>(null)
+  const [isBrushSelectionActive, setIsBrushSelectionActive] = React.useState(false)
   const [isMobile, setIsMobile] = React.useState(false)
   const chartRef = React.useRef<ReactECharts>(null)
   const ignoreNextEmptyBrushSelectionRef = React.useRef(false)
@@ -210,6 +211,12 @@ export function ComplianceStats({
       setPlotType("bar-chart")
     }
   }, [canShowRadarChart, plotType])
+
+  React.useEffect(() => {
+    if (effectivePlotType !== "bar-chart") {
+      setIsBrushSelectionActive(false)
+    }
+  }, [effectivePlotType])
 
   const barChartOption = React.useMemo(() => {
     return {
@@ -406,7 +413,21 @@ export function ComplianceStats({
 
   const onChartEvents = React.useMemo(
     () => ({
+      globalCursorTaken: (params: {
+        key?: string
+        brushOption?: {
+          brushType?: string | false
+        }
+      }) => {
+        if (params.key !== "brush") return
+        const nextBrushActive = !!params.brushOption?.brushType
+        setIsBrushSelectionActive(nextBrushActive)
+        if (nextBrushActive) {
+          setSelectedRadarBinIndex(null)
+        }
+      },
       click: (params: { componentType: string; dataIndex?: number; seriesIndex?: number }) => {
+        if (isBrushSelectionActive) return
         if (
           params.componentType !== "series" ||
           params.dataIndex === undefined ||
@@ -429,25 +450,14 @@ export function ComplianceStats({
           ignoreNextEmptyBrushSelectionRef.current = false
           if (selectedIndexes.length === 0) return
         }
+        if (isBrushSelectionActive) {
+          setSelectedRadarBinIndex(null)
+        }
         onSelectBins?.(selectedIndexes)
       },
     }),
-    [canShowRadarChart, onSelectBin, onSelectBins]
+    [canShowRadarChart, isBrushSelectionActive, onSelectBin, onSelectBins]
   )
-
-  const handleChartReady = React.useCallback<NonNullable<React.ComponentProps<typeof ReactECharts>["onChartReady"]>>((chart) => {
-    if (effectivePlotType !== "bar-chart") return
-
-    ignoreNextEmptyBrushSelectionRef.current = true
-    chart.dispatchAction({
-      type: "takeGlobalCursor",
-      key: "brush",
-      brushOption: {
-        brushType: "lineX",
-        brushMode: "multiple",
-      },
-    })
-  }, [effectivePlotType])
 
   const handleRadarChartClick = React.useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -552,7 +562,6 @@ export function ComplianceStats({
               style={{ height: chartHeight, width: "100%" }}
               opts={{ renderer: "canvas" }}
               onEvents={effectivePlotType === "bar-chart" ? onChartEvents : undefined}
-              onChartReady={handleChartReady}
             />
           </div>
         </div>
