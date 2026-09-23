@@ -10,12 +10,17 @@ export async function createInputTables(
   thresholds: Threshold[],
   weights: Weight[]
 ): Promise<void> {
+  const selectedAmenities = new Set<string>();
   const reqRows = thresholds.flatMap((t) =>
-    t.selectedDestinations.map(
-      (class_b) =>
-        `(${sqlStr(t.transportMode)}, ${t.travelTime}, ${t.quantity}, ${sqlStr(class_b)}, NULL)`
-    )
+    t.selectedDestinations.map((class_b) => {
+      selectedAmenities.add(class_b);
+      return `(${sqlStr(t.transportMode)}, ${t.travelTime}, ${t.quantity}, ${sqlStr(class_b)}, NULL)`;
+    })
   );
+
+  if (reqRows.length === 0) {
+    throw new Error("At least one compliance threshold is required.");
+  }
 
   const amenityWeights: Record<string, number> = {};
   for (const entry of weights) {
@@ -23,8 +28,11 @@ export async function createInputTables(
       amenityWeights[amenity] = entry.weight;
     }
   }
-  const weightRows = Object.entries(amenityWeights).map(
-    ([class_b, weight]) => `(${sqlStr(class_b)}, ${weight})`
+  for (const amenity of selectedAmenities) {
+    amenityWeights[amenity] ??= 1;
+  }
+  const weightRows = [...selectedAmenities].map(
+    (class_b) => `(${sqlStr(class_b)}, ${amenityWeights[class_b]})`
   );
 
   await conn.query(`

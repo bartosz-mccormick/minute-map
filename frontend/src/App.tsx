@@ -59,6 +59,8 @@ const travelScenarios = [
   { value: "current", label: "Current" },
 ]
 
+const INITIAL_CITY_VALUE = "munich"
+
 function logSelectionTiming(label: string, startedAt: number, details?: Record<string, unknown>) {
   const elapsedMs = performance.now() - startedAt
   console.info(`[selection-timing] ${label}: ${elapsedMs.toFixed(2)}ms`, details ?? {})
@@ -70,7 +72,7 @@ export default function App() {
   const useHexPerformanceFixture = shouldUseHexPerformanceFixture()
   const [appConfig, setAppConfig] = React.useState<ResolvedAppConfig | null>(null)
   const [appConfigError, setAppConfigError] = React.useState<string | null>(null)
-  const cityOptions = appConfig?.cities ?? []
+  const cityOptions = React.useMemo(() => appConfig?.cities ?? [], [appConfig])
   const [selectedCity, setSelectedCity] = React.useState<CityConfig | null>(null)
   const activeDestinations = React.useMemo(
     () => appConfig ? getCityDestinations(selectedCity, appConfig) : [],
@@ -88,21 +90,13 @@ export default function App() {
     () => appConfig ? getCitySingleDestinationIndicators(selectedCity, appConfig) : [],
     [appConfig, selectedCity]
   )
-  const defaultThresholds = React.useMemo(
-    () => createDefaultThresholds(activeDestinations, activeTransportModes),
-    [activeDestinations, activeTransportModes]
-  )
-  const defaultWeights = React.useMemo(
-    () => createDefaultWeights(activeDestinations),
-    [activeDestinations]
-  )
   const [selectedScenario, setSelectedScenario] = React.useState(INITIAL_SCENARIO)
   const [selectedPreset, setSelectedPreset] = React.useState(DEFAULT_PRESET_ID)
   const [thresholds, setThresholds] = React.useState<Threshold[]>([])
   const [weights, setWeights] = React.useState<Weight[]>([])
   const [customThresholds, setCustomThresholds] = React.useState<Threshold[]>([])
   const [customWeights, setCustomWeights] = React.useState<Weight[]>([])
-  const [initialLocationSelectionPending, setInitialLocationSelectionPending] = React.useState(true)
+  const [initialLocationSelectionPending, setInitialLocationSelectionPending] = React.useState(false)
   const [autoAnalyzePending, setAutoAnalyzePending] = React.useState(false)
   const [configOpen, setConfigOpen] = React.useState(false)
   const [configScrollControl, setConfigScrollControl] = React.useState<"down" | "up" | null>(null)
@@ -117,21 +111,12 @@ export default function App() {
   const drawRef = React.useRef<MapboxDrawApi | null>(null)
   const { ensureDuckDbClient } = useDuckDbClient(useHexPerformanceFixture, selectedCity?.dataBucket)
 
-  React.useEffect(() => {
-    let cancelled = false
-    loadAppConfigTemplate()
-      .then((nextConfig) => {
-        if (cancelled) return
-        setAppConfig(nextConfig)
-        setAppConfigError(null)
-      })
-      .catch((error) => {
-        if (cancelled) return
-        console.error("Application config loading failed:", error)
-        setAppConfigError(error instanceof Error ? error.message : "Application config could not be loaded.")
-      })
-    return () => {
-      cancelled = true
+  const getCityDefaultAnalysisState = React.useCallback((city: CityConfig, config: ResolvedAppConfig) => {
+    const destinations = getCityDestinations(city, config)
+    const transportModes = getCityTransportModes(city, config)
+    return {
+      thresholds: createDefaultThresholds(destinations, transportModes),
+      weights: createDefaultWeights(destinations),
     }
   }, [])
 
@@ -187,6 +172,40 @@ export default function App() {
     clearSelectedCellDetails,
     loadSelectedCellDetails,
   })
+
+  React.useEffect(() => {
+    let cancelled = false
+    loadAppConfigTemplate()
+      .then((nextConfig) => {
+        if (cancelled) return
+        setAppConfig(nextConfig)
+        setAppConfigError(null)
+        const initialCity =
+          nextConfig.cities.find((city) => city.value === INITIAL_CITY_VALUE) ??
+          nextConfig.cities[0] ??
+          null
+
+        if (initialCity) {
+          const defaultState = getCityDefaultAnalysisState(initialCity, nextConfig)
+          setSelectedCity(initialCity)
+          setSelectedPreset(DEFAULT_PRESET_ID)
+          setThresholds(defaultState.thresholds)
+          setWeights(defaultState.weights)
+          setCustomThresholds([])
+          setCustomWeights([])
+          setAvailableIndicators(getCityIndicators(initialCity, nextConfig))
+          setAutoAnalyzePending(true)
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return
+        console.error("Application config loading failed:", error)
+        setAppConfigError(error instanceof Error ? error.message : "Application config could not be loaded.")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [getCityDefaultAnalysisState, setAvailableIndicators])
 
   const resetAnalysisSelection = React.useCallback(() => {
     const draw = drawRef.current
@@ -296,7 +315,7 @@ export default function App() {
     if (drawnPolygons.length > 0) {
       setSelectedCellIds(polygonSelectedCellIds)
     }
-  }, [drawnPolygons, polygonSelectedCellIds])
+  }, [drawnPolygons, polygonSelectedCellIds, setSelectedCellIds])
 
   const getValue = React.useCallback(
     (d: Record<string, unknown>) => {
@@ -325,12 +344,14 @@ export default function App() {
   } as React.CSSProperties
 
   const handleReset = () => {
+    if (!appConfig || !selectedCity) return
+    const defaultState = getCityDefaultAnalysisState(selectedCity, appConfig)
     setSelectedScenario(INITIAL_SCENARIO)
     setSelectedPreset(DEFAULT_PRESET_ID)
-    setThresholds(defaultThresholds)
-    setWeights(defaultWeights)
-    setCustomThresholds(defaultThresholds)
-    setCustomWeights(defaultWeights)
+    setThresholds(defaultState.thresholds)
+    setWeights(defaultState.weights)
+    setCustomThresholds([])
+    setCustomWeights([])
   }
 
   const applyPreset = React.useCallback((
@@ -377,18 +398,15 @@ export default function App() {
     const nextCity = cityOptions.find((city) => city.value === cityValue)
     if (!nextCity || nextCity.value === selectedCity?.value) return
 
-    const nextDestinations = getCityDestinations(nextCity, appConfig)
-    const nextTransportModes = getCityTransportModes(nextCity, appConfig)
     const nextIndicators = getCityIndicators(nextCity, appConfig)
-    const nextThresholds = createDefaultThresholds(nextDestinations, nextTransportModes)
-    const nextWeights = createDefaultWeights(nextDestinations)
+    const defaultState = getCityDefaultAnalysisState(nextCity, appConfig)
 
     setSelectedCity(nextCity)
     setSelectedPreset(DEFAULT_PRESET_ID)
-    setThresholds(nextThresholds)
-    setWeights(nextWeights)
-    setCustomThresholds(nextThresholds)
-    setCustomWeights(nextWeights)
+    setThresholds(defaultState.thresholds)
+    setWeights(defaultState.weights)
+    setCustomThresholds([])
+    setCustomWeights([])
     setAvailableIndicators(nextIndicators)
     setDrawnPolygons([])
     setPoiPrefetchStatus("idle")
@@ -398,6 +416,7 @@ export default function App() {
     }
     resetSelectedCells()
     clearMapData("Run analysis to load map data.")
+    setAutoAnalyzePending(true)
   }
 
   React.useEffect(() => {
@@ -455,7 +474,6 @@ export default function App() {
       defaultOpen={initialLocationSelectionPending}
       onCityChange={(cityValue) => {
         handleCityChange(cityValue)
-        setAutoAnalyzePending(true)
         if (initialLocationSelectionPending) {
           setInitialLocationSelectionPending(false)
         }
@@ -634,9 +652,11 @@ export default function App() {
                           setThresholds(customThresholds)
                           setWeights(customWeights)
                         } else if (value === DEFAULT_PRESET_ID) {
+                          if (!appConfig || !selectedCity) return
+                          const defaultState = getCityDefaultAnalysisState(selectedCity, appConfig)
                           setSelectedPreset(DEFAULT_PRESET_ID)
-                          setThresholds(defaultThresholds)
-                          setWeights(defaultWeights)
+                          setThresholds(defaultState.thresholds)
+                          setWeights(defaultState.weights)
                         } else {
                           setSelectedPreset(value)
                           applyPreset(value)

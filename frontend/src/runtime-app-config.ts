@@ -37,7 +37,6 @@ type RuntimeAppConfig = {
   singleDestinationIndicators?: unknown
 }
 
-const APP_CONFIG_URL = import.meta.env.VITE_APP_CONFIG_URL?.trim() || ""
 const APP_CONFIG_FILE = import.meta.env.VITE_APP_CONFIG_FILE?.trim() || "app-config.json"
 
 export class AppConfigLoadError extends Error {
@@ -224,7 +223,6 @@ function normalizeConfig(rawConfig: RuntimeAppConfig): ResolvedAppConfig {
 
 export function getRuntimeAppConfigUrls() {
   const urls: string[] = []
-  if (APP_CONFIG_URL) urls.push(APP_CONFIG_URL)
 
   if (APP_CONFIG_FILE) {
     urls.push(getDataFileUrl(APP_CONFIG_FILE))
@@ -281,7 +279,10 @@ export function createDefaultThresholds(
   destinations: Destination[],
   transportModes: TransportMode[]
 ): Threshold[] {
-  const transportMode = transportModes[0]?.value ?? "walk"
+  const transportMode =
+    transportModes.find((mode) => mode.value === "walk")?.value ??
+    transportModes[0]?.value ??
+    "walk"
   return [{
     id: "default-15-minute-city",
     selectedDestinations: destinations.map((destination) => destination.value),
