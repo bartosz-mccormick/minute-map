@@ -1,0 +1,44 @@
+[
+  {
+    "value": "munich",
+    "label": "Munich, DE",
+    "configUrl": "https://data.minutemap.online/munich/config.json",
+    "localPath": "/data/munich/config.json"
+  },
+  {
+    "value": "utrecht",
+    "label": "Utrecht, NL",
+    "configUrl": "https://data.minutemap.online/utrecht/config.json",
+    "localPath": "/data/utrecht/config.json"
+  },
+  {
+    "value": "rakosmente",
+    "label": "Rakosmente (Budapest, HU)",
+    "configUrl": "https://data.minutemap.online/rakosmente/config.json",
+    "localPath": "/data/rakosmente/config.json"
+  },
+  {
+    "value": "liesing",
+    "label": "Liesing (Vienna, AT)",
+    "configUrl": "https://data.minutemap.online/liesing/config.json",
+    "localPath": "/data/liesing/config.json"
+  },
+  {
+    "value": "geretsried",
+    "label": "Geretsried, DE",
+    "configUrl": "https://data.minutemap.online/geretsried/config.json",
+    "localPath": "/data/geretsried/config.json"
+  },
+  {
+    "value": "noh",
+    "label": "Neder-Over-Heembeek (Brussels, BE)",
+    "configUrl": "https://data.minutemap.online/noh/config.json",
+    "localPath": "/data/noh/config.json"
+  },
+  {
+    "value": "evry-courcouronnes",
+    "label": "Evry-Courcouronnes (Paris, FR)",
+    "configUrl": "https://data.minutemap.online/evry-courcouronnes/config.json",
+    "localPath": "/data/evry-courcouronnes/config.json"
+  }
+]

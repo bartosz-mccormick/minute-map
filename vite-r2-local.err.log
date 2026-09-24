@@ -1,8 +1,0 @@
-Sourcemap for "C:/Users/ritaMZ/WebstormProjects/dreams-xmin-city-accessibility-tool-frontend/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js" points to missing source files
-npm error Lifecycle script `dev` failed with error:
-npm error code 4294967295
-npm error path C:\Users\ritaMZ\WebstormProjects\dreams-xmin-city-accessibility-tool-frontend\frontend
-npm error workspace frontend@0.0.0
-npm error location C:\Users\ritaMZ\WebstormProjects\dreams-xmin-city-accessibility-tool-frontend\frontend
-npm error command failed
-npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vite --host 127.0.0.1 --port 5174
