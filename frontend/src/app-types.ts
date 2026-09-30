@@ -22,9 +22,9 @@ export interface CityConfig {
   indicators?: NestedOption[]
   singleDestinationIndicators?: NestedOption[]
   viewState: {
+    bounds: [[number, number], [number, number]]
     longitude: number
     latitude: number
-    zoom: number
     pitch: number
     bearing: number
   }

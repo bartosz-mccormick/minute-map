@@ -651,6 +651,13 @@ export function HexMap({
     performanceMode,
     layerCount: layers.length,
   })
+  const mapInitialViewState = React.useMemo(
+    () => ({
+      ...initialViewState,
+      fitBoundsOptions: { padding: 48 },
+    }),
+    [initialViewState]
+  )
   const handleNativeHexClick = React.useCallback<NonNullable<MapProps["onClick"]>>(
     (event) => {
       if (!renderNativeHexLayer) return
@@ -714,7 +721,7 @@ export function HexMap({
 
   return (
     <Map
-      initialViewState={initialViewState}
+      initialViewState={mapInitialViewState}
       mapStyle={MAP_STYLE}
       onClick={renderNativeHexLayer ? handleNativeHexClick : undefined}
       style={{ width: "100%", height: "100%" }}

@@ -140,6 +140,23 @@ function normalizeArray<T>(value: unknown, normalize: (entry: unknown) => T | nu
   return normalized
 }
 
+function normalizeBounds(value: unknown): [[number, number], [number, number]] | undefined {
+  if (!Array.isArray(value) || value.length !== 2) return undefined
+
+  const [bottomLeft, topRight] = value
+  if (!Array.isArray(bottomLeft) || !Array.isArray(topRight)) return undefined
+
+  const west = Number(bottomLeft[0])
+  const south = Number(bottomLeft[1])
+  const east = Number(topRight[0])
+  const north = Number(topRight[1])
+
+  if (![west, south, east, north].every(Number.isFinite)) return undefined
+  if (west >= east || south >= north) return undefined
+
+  return [[west, south], [east, north]]
+}
+
 function getIndicatorGroup(value: unknown, key: "overall" | "perAmenity") {
   const record = asRecord(value)
   return record ? record[key] : value
@@ -171,8 +188,9 @@ function normalizeCity(value: unknown): CityConfig | null {
 
   const longitude = Number(viewState.longitude)
   const latitude = Number(viewState.latitude)
-  const zoom = Number(viewState.zoom ?? 10)
-  if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || !Number.isFinite(zoom)) return null
+  const bounds = normalizeBounds(viewState.bounds)
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null
+  if (!bounds) return null
 
   return {
     value: cityValue,
@@ -180,9 +198,9 @@ function normalizeCity(value: unknown): CityConfig | null {
     dataBucket: normalizeDataBucket(city),
     defaultPresetId: asString(city.defaultPresetId) ?? DEFAULT_PRESET_ID,
     viewState: {
+      bounds,
       longitude,
       latitude,
-      zoom,
       pitch: Number(viewState.pitch ?? 0),
       bearing: Number(viewState.bearing ?? 0),
     },

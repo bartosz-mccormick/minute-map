@@ -25,12 +25,42 @@ type LocationMapPickerProps = {
   defaultOpen?: boolean
 }
 
-const OVERVIEW_VIEW_STATE = {
-  longitude: 9.6,
-  latitude: 50.4,
-  zoom: 4.35,
-  pitch: 0,
-  bearing: 0,
+const FALLBACK_OVERVIEW_BOUNDS: [[number, number], [number, number]] = [
+  [4.5, 47],
+  [20, 53],
+]
+
+const OVERVIEW_FIT_BOUNDS_OPTIONS = { padding: 48 }
+
+function getOverviewViewState(cities: CityConfig[]) {
+  const cityBounds = cities.map((city) => city.viewState.bounds)
+  const bounds = cityBounds.length > 0
+    ? cityBounds.reduce<[[number, number], [number, number]]>(
+      (acc, cityBound) => [
+        [
+          Math.min(acc[0][0], cityBound[0][0]),
+          Math.min(acc[0][1], cityBound[0][1]),
+        ],
+        [
+          Math.max(acc[1][0], cityBound[1][0]),
+          Math.max(acc[1][1], cityBound[1][1]),
+        ],
+      ],
+      [
+        [...cityBounds[0][0]],
+        [...cityBounds[0][1]],
+      ] as [[number, number], [number, number]]
+    )
+    : FALLBACK_OVERVIEW_BOUNDS
+
+  return {
+    bounds,
+    longitude: (bounds[0][0] + bounds[1][0]) / 2,
+    latitude: (bounds[0][1] + bounds[1][1]) / 2,
+    fitBoundsOptions: OVERVIEW_FIT_BOUNDS_OPTIONS,
+    pitch: 0,
+    bearing: 0,
+  }
 }
 
 type LabelSide = "left" | "right"
@@ -46,6 +76,7 @@ export function LocationMapPicker({
   const mapRef = React.useRef<MapRef | null>(null)
   const labelRefs = React.useRef<Record<string, HTMLSpanElement | null>>({})
   const [labelSides, setLabelSides] = React.useState<Record<string, LabelSide>>({})
+  const overviewViewState = React.useMemo(() => getOverviewViewState(cities), [cities])
 
   const handleSelectCity = React.useCallback(
     (cityValue: string) => {
@@ -177,7 +208,7 @@ export function LocationMapPicker({
         <div className="location-map-canvas">
           <Map
             ref={mapRef}
-            initialViewState={OVERVIEW_VIEW_STATE}
+            initialViewState={overviewViewState}
             mapStyle={MAP_STYLE}
             attributionControl={false}
             style={{ width: "100%", height: "100%" }}
