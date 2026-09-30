@@ -1,0 +1,157 @@
+{
+  "base_h3_res": 10,
+  "MAX_TT": 30,
+  "projected_crs": 3050,
+  "osmosis_pbf_processing": false,
+  "departure_time_TZ": "CET",
+  "modes": [
+    {
+      "id": "walk",
+      "ttm_h3_res": 10,
+      "FE_label": "Walk (4 kph)",
+      "mode": "WALK",
+      "mode_egress": "WALK",
+      "departure_datetime": "2008-09-15T12:00:00",
+      "time_window": 1,
+      "percentiles": 10,
+      "max_walk_time": "MAX_TT",
+      "max_bike_time": "MAX_TT",
+      "max_trip_duration": "MAX_TT",
+      "walk_speed": 4,
+      "bike_speed": 14,
+      "max_rides": 3,
+      "max_lts": 2
+    },
+    {
+      "id": "bike",
+      "ttm_h3_res": 10,
+      "FE_label": "Bike (14 kph)",
+      "mode": "BICYCLE",
+      "mode_egress": "BICYCLE",
+      "departure_datetime": "2008-09-15T12:00:00",
+      "time_window": 1,
+      "percentiles": 10,
+      "max_walk_time": "MAX_TT",
+      "max_bike_time": "MAX_TT",
+      "max_trip_duration": "MAX_TT",
+      "walk_speed": 4,
+      "bike_speed": 14,
+      "max_rides": 3,
+      "max_lts": 2
+    }
+  ],
+  "FE_indicators": {
+    "overall": [
+      {
+        "value": "compliance_weighted_avg",
+        "label": "X-Min City Compliance"
+      },
+      {
+        "value": "pop",
+        "label": "Population"
+      }
+    ],
+    "perAmenity": [
+      {
+        "value": "compliance",
+        "label": "Compliance"
+      },
+      {
+        "value": "min_travel_time",
+        "label": "Time to Nearest"
+      },
+      {
+        "value": "n_total",
+        "label": "Number of Opportunities"
+      }
+    ]
+  },
+  "FE_amenities": [
+    {
+      "value": "grocery",
+      "label": "Supermarket",
+      "icon": "🛒"
+    },
+    {
+      "value": "pharmacy",
+      "label": "Pharmacy",
+      "icon": "💊"
+    },
+    {
+      "value": "atm_bank",
+      "label": "ATM/Bank",
+      "icon": "🏦"
+    },
+    {
+      "value": "post",
+      "label": "Post Office",
+      "icon": "📦"
+    },
+    {
+      "value": "gp",
+      "label": "General Practitioner",
+      "icon": "🩺"
+    },
+    {
+      "value": "restaurant",
+      "label": "Restaurant",
+      "icon": "🍽️"
+    },
+    {
+      "value": "cafe",
+      "label": "Cafe",
+      "icon": "☕"
+    },
+    {
+      "value": "bar",
+      "label": "Bar",
+      "icon": "🍺"
+    },
+    {
+      "value": "bakery",
+      "label": "Bakery",
+      "icon": "🥐"
+    },
+    {
+      "value": "school",
+      "label": "School",
+      "icon": "🏫"
+    },
+    {
+      "value": "kindergarten",
+      "label": "Kindergarten",
+      "icon": "🧸"
+    },
+    {
+      "value": "library",
+      "label": "Library",
+      "icon": "📚"
+    },
+    {
+      "value": "sport",
+      "label": "Sports Facility",
+      "icon": "🏃"
+    },
+    {
+      "value": "park",
+      "label": "Park",
+      "icon": "🌳"
+    },
+    {
+      "value": "playground",
+      "label": "Playground",
+      "icon": "🛝"
+    }
+  ],
+  "value": "utrecht",
+  "FE_viewState": {
+    "bounds": [
+      [4.9701, 52.0263],
+      [5.1952, 52.1421]
+    ],
+    "longitude": 5.08265,
+    "latitude": 52.0842,
+    "pitch": 0,
+    "bearing": 0
+  }
+}
