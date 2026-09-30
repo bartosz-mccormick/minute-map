@@ -105,7 +105,7 @@ describe("syncSelectedHexMapLayer", () => {
   it("keeps selected cells in a separate lightweight source", () => {
     const mapLike = createMapLike()
 
-    expect(syncSelectedHexMapLayer(mapLike, fixture)).toBe(true)
+    expect(syncSelectedHexMapLayer(mapLike, fixture, 0.4)).toBe(true)
     expect(mapLike.addSource).toHaveBeenCalledWith(
       SELECTED_HEX_SOURCE_ID,
       expect.any(Object)
@@ -118,7 +118,7 @@ describe("syncSelectedHexMapLayer", () => {
     )
 
     const nextFixture = { ...fixture }
-    expect(syncSelectedHexMapLayer(mapLike, nextFixture)).toBe(true)
+    expect(syncSelectedHexMapLayer(mapLike, nextFixture, 0.5)).toBe(true)
     expect(mapLike.addSource).toHaveBeenCalledTimes(1)
     expect(mapLike.addLayer).toHaveBeenCalledTimes(2)
     expect(mapLike.setData).toHaveBeenCalledWith(nextFixture)
@@ -127,7 +127,7 @@ describe("syncSelectedHexMapLayer", () => {
   it("removes selected source and layers on cleanup", () => {
     const mapLike = createMapLike()
 
-    syncSelectedHexMapLayer(mapLike, fixture)
+    syncSelectedHexMapLayer(mapLike, fixture, 0.4)
     removeSelectedHexMapLayer(mapLike)
 
     expect(mapLike.removeLayer).toHaveBeenCalledWith(SELECTED_HEX_LINE_LAYER_ID)
