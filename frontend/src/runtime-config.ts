@@ -1,8 +1,4 @@
-import {
-  DEFAULT_PRESET_ID,
-  R2_BUCKET,
-  getDataFileUrl,
-} from "@/app-config"
+import { DEFAULT_PRESET_ID } from "@/frontend-config"
 import type { CityConfig, Destination, NestedOption, Threshold, TransportMode, Weight } from "@/app-types"
 
 export type ResolvedAppConfig = {
@@ -25,9 +21,12 @@ type RuntimeCityConfig = Partial<CityConfig> & {
   transportModes?: unknown
   indicators?: unknown
   singleDestinationIndicators?: unknown
+  FE_amenities?: unknown
+  FE_indicators?: unknown
+  FE_viewState?: unknown
 }
 
-type RuntimeAppConfig = {
+type RuntimeConfig = {
   cities?: unknown
   amenities?: unknown
   destinations?: unknown
@@ -37,7 +36,20 @@ type RuntimeAppConfig = {
   singleDestinationIndicators?: unknown
 }
 
-const APP_CONFIG_FILE = import.meta.env.VITE_APP_CONFIG_FILE?.trim() || "app-config.json"
+type RuntimeCityManifestEntry = {
+  value?: unknown
+  id?: unknown
+  label?: unknown
+  name?: unknown
+}
+
+const CITY_MANIFEST_FILE = "cities.json"
+const LOCAL_DATA_ROOT = "/data/local"
+
+export const R2_BUCKET = import.meta.env.VITE_R2_BUCKET?.trim().replace(/\/+$/, "") || null
+
+export const getDataFileUrl = (filename: string, bucket = R2_BUCKET): string =>
+  bucket ? `${bucket}/${filename}` : `/data/${filename}`
 
 export class AppConfigLoadError extends Error {
   readonly details?: unknown
@@ -97,7 +109,7 @@ function normalizeMode(value: unknown): TransportMode | null {
   }
 
   const rawValue = asString(record.value) ?? asString(record.id) ?? asString(record.mode)
-  const label = asString(record.label) ?? asString(record.name) ?? rawValue
+  const label = asString(record.label) ?? asString(record.FE_label) ?? asString(record.name) ?? rawValue
   if (!rawValue && !label) return null
 
   return {
@@ -137,8 +149,16 @@ function normalizeDataBucket(city: RuntimeCityConfig) {
   const explicit = asString(city.dataBucket) ?? asString(city.bucket)
   if (explicit) return explicit.replace(/\/+$/, "")
   const path = asString(city.dataPath)
-  if (!path) return null
-  return R2_BUCKET ? `${R2_BUCKET.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}` : `/data/${path.replace(/^\/+/, "")}`
+  if (path) {
+    return R2_BUCKET
+      ? `${R2_BUCKET.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`
+      : `${LOCAL_DATA_ROOT}/${path.replace(/^\/+/, "")}`
+  }
+  const cityValue = asString(city.value) ?? asString(city.id)
+  if (!cityValue) return null
+  return R2_BUCKET
+    ? `${R2_BUCKET.replace(/\/+$/, "")}/${cityValue}`
+    : `${LOCAL_DATA_ROOT}/${cityValue}`
 }
 
 function normalizeCity(value: unknown): CityConfig | null {
@@ -146,12 +166,12 @@ function normalizeCity(value: unknown): CityConfig | null {
   if (!city) return null
 
   const cityValue = asString(city.value) ?? asString(city.id)
-  const viewState = asRecord(city.viewState)
+  const viewState = asRecord(city.viewState) ?? asRecord(city.FE_viewState)
   if (!cityValue || !viewState) return null
 
   const longitude = Number(viewState.longitude)
   const latitude = Number(viewState.latitude)
-  const zoom = Number(viewState.zoom)
+  const zoom = Number(viewState.zoom ?? 10)
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || !Number.isFinite(zoom)) return null
 
   return {
@@ -166,17 +186,17 @@ function normalizeCity(value: unknown): CityConfig | null {
       pitch: Number(viewState.pitch ?? 0),
       bearing: Number(viewState.bearing ?? 0),
     },
-    amenities: normalizeArray(city.amenities ?? city.destinations, normalizeDestination),
+    amenities: normalizeArray(city.amenities ?? city.destinations ?? city.FE_amenities, normalizeDestination),
     transportModes: normalizeArray(city.modes ?? city.transportModes, normalizeMode),
-    indicators: normalizeArray(getIndicatorGroup(city.indicators, "overall"), normalizeIndicator),
+    indicators: normalizeArray(getIndicatorGroup(city.indicators ?? city.FE_indicators, "overall"), normalizeIndicator),
     singleDestinationIndicators: normalizeArray(
-      city.singleDestinationIndicators ?? getIndicatorGroup(city.indicators, "perAmenity"),
+      city.singleDestinationIndicators ?? getIndicatorGroup(city.indicators ?? city.FE_indicators, "perAmenity"),
       normalizeIndicator
     ),
   }
 }
 
-function normalizeConfig(rawConfig: RuntimeAppConfig): ResolvedAppConfig {
+function normalizeConfig(rawConfig: RuntimeConfig): ResolvedAppConfig {
   const destinations = normalizeArray(
     rawConfig.amenities ?? rawConfig.destinations,
     normalizeDestination
@@ -221,32 +241,62 @@ function normalizeConfig(rawConfig: RuntimeAppConfig): ResolvedAppConfig {
   return { cities, ...baseConfig }
 }
 
-export function getRuntimeAppConfigUrls() {
-  const urls: string[] = []
-
-  if (APP_CONFIG_FILE) {
-    urls.push(getDataFileUrl(APP_CONFIG_FILE))
-    urls.push(`/data/${APP_CONFIG_FILE.replace(/^\/+/, "")}`)
-  }
-
-  return [...new Set(urls)]
+function getCityManifestUrls() {
+  return R2_BUCKET
+    ? [`${R2_BUCKET.replace(/\/+$/, "")}/${CITY_MANIFEST_FILE}`]
+    : [`${LOCAL_DATA_ROOT}/${CITY_MANIFEST_FILE}`]
 }
 
-export async function loadAppConfigTemplate(): Promise<ResolvedAppConfig> {
-  const configUrls = getRuntimeAppConfigUrls()
+function getCityConfigUrl(cityValue: string) {
+  return R2_BUCKET
+    ? `${R2_BUCKET.replace(/\/+$/, "")}/${cityValue}/config.json`
+    : `${LOCAL_DATA_ROOT}/${cityValue}/config.json`
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url, { cache: "no-cache" })
+  if (!response.ok) throw new Error(`Config request failed with ${response.status}`)
+  return response.json()
+}
+
+async function loadCityManifest(): Promise<RuntimeCityManifestEntry[]> {
   const errors: unknown[] = []
 
-  for (const configUrl of configUrls) {
+  for (const manifestUrl of getCityManifestUrls()) {
     try {
-      const response = await fetch(configUrl, { cache: "no-cache" })
-      if (!response.ok) throw new Error(`Config request failed with ${response.status}`)
-      return normalizeConfig(await response.json() as RuntimeAppConfig)
+      const manifest = await fetchJson(manifestUrl)
+      if (!Array.isArray(manifest)) throw new Error("City manifest must be an array.")
+      return manifest as RuntimeCityManifestEntry[]
     } catch (error) {
-      errors.push({ configUrl, error })
+      errors.push({ manifestUrl, error })
     }
   }
 
-  throw new AppConfigLoadError("Application config could not be loaded.", errors)
+  throw new AppConfigLoadError("City manifest could not be loaded.", errors)
+}
+
+async function loadConfigFromCityManifest(): Promise<ResolvedAppConfig> {
+  const manifest = await loadCityManifest()
+  const cities = await Promise.all(manifest.map(async (entry) => {
+    const entryRecord = asRecord(entry)
+    const cityValue = asString(entryRecord?.value) ?? asString(entryRecord?.id)
+    if (!cityValue) return null
+
+    const detail = await fetchJson(getCityConfigUrl(cityValue)) as RuntimeCityConfig
+    return normalizeCity({
+      ...detail,
+      value: cityValue,
+      label: asString(entryRecord?.label) ?? asString(entryRecord?.name) ?? asString(detail.label) ?? asString(detail.name),
+      dataBucket: normalizeDataBucket({ ...detail, value: cityValue }),
+    })
+  }))
+
+  const resolvedCities = cities.filter((city): city is CityConfig => city !== null)
+  return normalizeConfig({ cities: resolvedCities })
+}
+
+export async function loadAppConfigTemplate(): Promise<ResolvedAppConfig> {
+  return loadConfigFromCityManifest()
 }
 
 export function getCityDestinations(city: CityConfig | null, config: ResolvedAppConfig) {

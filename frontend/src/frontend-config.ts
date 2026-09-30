@@ -10,11 +10,6 @@ import type {
   TransportMode,
 } from "./app-types"
 
-export const R2_BUCKET = import.meta.env.VITE_R2_BUCKET?.trim().replace(/\/+$/, "") || null
-
-export const getDataFileUrl = (filename: string, bucket = R2_BUCKET): string =>
-  bucket ? `${bucket}/${filename}` : `/data/${filename}`
-
 export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 export const MAX_TT = 30
 export const DEFAULT_QUANTILE_BIN_COUNT = 5

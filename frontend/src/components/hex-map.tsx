@@ -17,7 +17,7 @@ import type {
   MapWithEvents,
   MapboxDrawRef,
 } from "@/app-types"
-import { MAP_STYLE } from "@/app-config"
+import { MAP_STYLE } from "@/frontend-config"
 import {
   getHexLineWidthMinPixels,
   getHexPerformanceVariant,

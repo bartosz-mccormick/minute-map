@@ -42,7 +42,7 @@ import {
   PRESET_NESTED_OPTIONS,
   PRESETS,
   isMinTravelTimeIndicator,
-} from "@/app-config"
+} from "@/frontend-config"
 import {
   createDefaultThresholds,
   createDefaultWeights,
@@ -52,7 +52,7 @@ import {
   getCityTransportModes,
   loadAppConfigTemplate,
   type ResolvedAppConfig,
-} from "@/runtime-app-config"
+} from "@/runtime-config"
 import type { CityConfig, MapboxDrawApi, Threshold, Weight } from "@/app-types"
 
 const travelScenarios = [

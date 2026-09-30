@@ -2,7 +2,7 @@ import * as React from "react"
 import ReactECharts from "echarts-for-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { getIndicatorBinConfig, isComplianceIndicator, rgb } from "@/app-config"
+import { getIndicatorBinConfig, isComplianceIndicator, rgb } from "@/frontend-config"
 import {
   MAP_OVERLAY_BODY_SMALL_CLASS,
   MAP_OVERLAY_BODY_SMALL_CANVAS_TEXT_STYLE,

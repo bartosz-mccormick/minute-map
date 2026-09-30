@@ -1,6 +1,6 @@
 import * as React from "react"
 import type { Color, LegendBandsProps } from "@/app-types"
-import { fmt, rgb } from "@/app-config"
+import { fmt, rgb } from "@/frontend-config"
 import { MAP_OVERLAY_BODY_MAIN_CLASS } from "@/lib/map-overlay-styles"
 
 export function LegendBands({

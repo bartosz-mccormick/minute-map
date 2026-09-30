@@ -3,7 +3,7 @@ import { Check, MapPin } from "lucide-react"
 import { Map, Marker, NavigationControl } from "react-map-gl/maplibre"
 import type { MapRef } from "react-map-gl/maplibre"
 import type { CityConfig } from "@/app-types"
-import { MAP_STYLE } from "@/app-config"
+import { MAP_STYLE } from "@/frontend-config"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

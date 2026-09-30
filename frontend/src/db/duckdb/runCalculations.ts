@@ -1,4 +1,4 @@
-import { getIndicatorBinConfig, isMinTravelTimeIndicator } from "@/app-config"
+import { getIndicatorBinConfig, isMinTravelTimeIndicator } from "@/frontend-config"
 import type { BinConfig } from "@/app-types"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"
 

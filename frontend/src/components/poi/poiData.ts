@@ -1,4 +1,4 @@
-import { getDataFileUrl } from "@/app-config"
+import { getDataFileUrl } from "@/runtime-config"
 import { incrementPoiPerfCounter } from "@/components/poi/poiPerfDebug"
 import type { Destination } from "@/app-types"
 import type { AsyncDuckDBConnection } from "@duckdb/duckdb-wasm"

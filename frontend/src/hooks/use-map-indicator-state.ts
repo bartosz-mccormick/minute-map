@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getIndicatorFillConfig } from "@/app-config"
+import { getIndicatorFillConfig } from "@/frontend-config"
 import type { Destination, HexMapDeckObject, MapboxDrawApi, NestedOption } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
 import { useHexPerformanceFixtureSupport } from "@/performance-fixtures/hex-performance-fixture"

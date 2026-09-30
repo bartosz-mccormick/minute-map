@@ -14,7 +14,7 @@ import {
   MAP_OVERLAY_BODY_MAIN_CLASS,
   MAP_OVERLAY_PANEL_TITLE_CLASS,
 } from "@/lib/map-overlay-styles"
-import { getDestinationIcon, getDestinationLabel } from "@/app-config"
+import { getDestinationIcon, getDestinationLabel } from "@/frontend-config"
 import type { EditableWeightsTableProps, Weight } from "@/app-types"
 
 export function EditableWeightsTable({

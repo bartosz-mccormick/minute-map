@@ -1,5 +1,5 @@
 import * as React from "react"
-import { buildIndicatorOptions } from "@/app-config"
+import { buildIndicatorOptions } from "@/frontend-config"
 import type { Destination, NestedOption, Threshold, TransportMode, Weight } from "@/app-types"
 import type { DuckDbClient } from "@/db/duckdb/createDuckDb"
 

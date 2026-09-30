@@ -5,7 +5,7 @@ import getComplianceBatchSql from "../sql/get-compliance-batch.sql?raw";
 import getComplianceBatchAmenitySummarySql from "../sql/get-compliance-batch-amenity-summary.sql?raw";
 import getComplianceBatchSummarySql from "../sql/get-compliance-batch-summary.sql?raw";
 
-import {getDataFileUrl} from "../../app-config.ts"
+import { getDataFileUrl } from "../../runtime-config.ts"
 
 const setupDataBuckets = new WeakMap<DuckDbClient, string | null | undefined>();
 
